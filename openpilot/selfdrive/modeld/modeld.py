@@ -74,7 +74,7 @@ class ChestnutState:
   def __init__(self, pm: PubMaster):
     self.pm = pm
     self.params = Params()
-    self.valid = True
+    self.valid = False
     self.sends = 0
     self.metrics = {}
 
@@ -88,7 +88,7 @@ class ChestnutState:
     state = msg.chestnutState
     big = self.params.get_bool("UsbGpuActive")
     self.sends += 1
-    if big and "AMD" in Device._opened_devices and self.sends % 10 == 1:
+    if big and "AMD" in Device._opened_devices and self.sends % 100 == 1:
       try:
         smu = Device["AMD"].iface.dev_impl.smu
         smu._send_msg(smu.smu_mod.PPSMC_MSG_TransferTableSmu2Dram, smu.smu_mod.TABLE_SMU_METRICS, timeout=100)
@@ -105,6 +105,7 @@ class ChestnutState:
         if self.valid:
           cloudlog.exception("chestnut state read failed")
         self.valid = False
+        self.metrics.clear()
     if big:
       for k, v in self.metrics.items():
         setattr(state, k, v)
