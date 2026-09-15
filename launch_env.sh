@@ -20,3 +20,7 @@ if [ -z "$AGNOS_VERSION" ]; then
 fi
 
 export STAGING_ROOT="/data/safe_staging"
+
+# This device branch records the 308 T9; identification must only receive CAN.
+export SKIP_FW_QUERY=1
+export PSA_DASHCAM_ONLY=1

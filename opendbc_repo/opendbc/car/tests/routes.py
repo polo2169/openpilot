@@ -19,6 +19,7 @@ from opendbc.car.psa.values import CAR as PSA
 
 # FIXME: add routes for these cars
 non_tested_cars = [
+  PSA.PSA_PEUGEOT_308_T9,  # Draft dashcam port: ESP32 RX fixtures only; comma route pending.
   MOCK.MOCK,
   GM.CADILLAC_ATS,
   GM.HOLDEN_ASTRA,
