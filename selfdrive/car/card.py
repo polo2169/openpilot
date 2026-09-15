@@ -146,6 +146,10 @@ class Car:
     # Write CarParams for controls and radard
     cp_bytes = self.CP.to_bytes()
     self.params.put("CarParams", cp_bytes, block=True)
+    if self.CP.passive:
+      # Passive cars never call controls_update/CI.init. Let pandad consume the
+      # persisted noOutput configuration without initializing any actuators.
+      self.params.put_bool("ControlsReady", True, block=True)
     self.params.put("CarParamsCache", cp_bytes)
     self.params.put("CarParamsPersistent", cp_bytes)
 

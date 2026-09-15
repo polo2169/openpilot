@@ -48,6 +48,38 @@ class TestPSADashcamDeployment(unittest.TestCase):
     with structs.CarParams.from_bytes(saved.args[1]) as stored:
       self.assertTrue(stored.passive)
       self.assertEqual(stored.safetyConfigs[0].safetyModel, structs.CarParams.SafetyModel.noOutput)
+    ready = next(call for call in params.method_calls if call[0] == "put_bool" and call.args[0] == "ControlsReady")
+    persisted = next(call for call in params.method_calls if call[0] == "put" and call.args[0] == "CarParams")
+    self.assertLess(params.method_calls.index(persisted), params.method_calls.index(ready))
+    self.assertEqual(ready.args, ("ControlsReady", True))
+    self.assertEqual(ready.kwargs, {"block": True})
+
+    car.sm.__getitem__.return_value = []
+    car.sm.seen = {'onroadEvents': True}
+    with patch.object(car, "state_update", return_value=(structs.CarState(), None)), \
+         patch.object(car, "state_publish"), patch.object(ci, "init") as init, patch.object(ci, "apply") as apply:
+      car.step()
+      car.step()
+    init.assert_not_called()
+    apply.assert_not_called()
+    car.pm.send.assert_not_called()
+
+  def test_active_car_still_waits_for_control_initialization(self):
+    cp = CarInterface.get_non_essential_params(CAR.PSA_PEUGEOT_308_T9)
+    ci = CarInterface(cp)
+    cp.dashcamOnly = False
+    ci.CC = MagicMock()
+    params = MagicMock()
+    params.get.return_value = None
+    params.get_bool.return_value = True
+    with patch.dict(os.environ, {"PSA_DASHCAM_ONLY": "0"}), \
+         patch("openpilot.selfdrive.car.card.Params", return_value=params), \
+         patch("openpilot.selfdrive.car.card.messaging.sub_sock"), \
+         patch("openpilot.selfdrive.car.card.messaging.SubMaster"), \
+         patch("openpilot.selfdrive.car.card.messaging.PubMaster"):
+      car = Car(CI=ci, RI=MagicMock())
+    self.assertFalse(car.CP.passive)
+    self.assertFalse(any(call.args[0] == "ControlsReady" for call in params.put_bool.call_args_list))
 
 
 if __name__ == "__main__":
