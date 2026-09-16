@@ -1,4 +1,5 @@
 #include "selfdrive/pandad/pandad.h"
+#include "selfdrive/pandad/psa_t15.h"
 
 #include <array>
 #include <atomic>
@@ -95,17 +96,23 @@ void can_send_thread(Panda *panda, bool fake_send) {
   }
 }
 
-void can_recv(Panda *panda, PubMaster *pm) {
+void can_recv(Panda *panda, PubMaster *pm, PsaT15Ignition &psa_t15) {
   static std::vector<can_frame> raw_can_data;
   {
     raw_can_data.clear();
     bool comms_healthy = panda->can_receive(raw_can_data);
+    if (!comms_healthy) psa_t15.reset();
+    const uint64_t received_ns = nanos_since_boot();
 
     MessageBuilder msg;
     auto evt = msg.initEvent();
     evt.setValid(comms_healthy);
     auto canData = evt.initCan(raw_can_data.size());
     for (size_t i = 0; i < raw_can_data.size(); ++i) {
+      if (comms_healthy) {
+        const auto &frame = raw_can_data[i];
+        psa_t15.update(frame.address, frame.src, reinterpret_cast<const uint8_t *>(frame.dat.data()), frame.dat.size(), received_ns);
+      }
       canData[i].setAddress(raw_can_data[i].address);
       canData[i].setDat(kj::arrayPtr((uint8_t*)raw_can_data[i].dat.data(), raw_can_data[i].dat.size()));
       canData[i].setSrc(raw_can_data[i].src);
@@ -190,7 +197,7 @@ void fill_panda_can_state(cereal::PandaState::PandaCanState::Builder &cs, const 
   cs.setCanCoreResetCnt(can_health.can_core_reset_cnt);
 }
 
-std::optional<bool> send_panda_states(PubMaster *pm, Panda *panda, bool is_onroad, bool spoofing_started) {
+std::optional<bool> send_panda_states(PubMaster *pm, Panda *panda, bool is_onroad, bool spoofing_started, PsaT15Ignition &psa_t15) {
   // build msg
   MessageBuilder msg;
   auto evt = msg.initEvent();
@@ -198,6 +205,7 @@ std::optional<bool> send_panda_states(PubMaster *pm, Panda *panda, bool is_onroa
 
   auto health_opt = panda->get_state();
   if (!health_opt) {
+    psa_t15.reset();
     return std::nullopt;
   }
 
@@ -207,12 +215,19 @@ std::optional<bool> send_panda_states(PubMaster *pm, Panda *panda, bool is_onroa
   for (uint32_t i = 0; i < PANDA_CAN_CNT; i++) {
     auto can_health_opt = panda->get_can_state(i);
     if (!can_health_opt) {
+      psa_t15.reset();
       return std::nullopt;
     }
     can_health[i] = *can_health_opt;
   }
 
-  if (spoofing_started) {
+  if (psa_t15.enabled()) {
+    // Publish the measured host-side value before power-save/onroad decisions.
+    // The physical ignition line remains the value reported by Panda.
+    health.ignition_can_pkt = psa_t15.ignition(nanos_since_boot(), panda->comms_healthy(), health.car_harness_status_pkt != 0);
+  }
+
+  if (spoofing_started && !psa_t15.enabled()) {
     health.ignition_line_pkt = 1;
   }
 
@@ -229,7 +244,7 @@ std::optional<bool> send_panda_states(PubMaster *pm, Panda *panda, bool is_onroa
   }
 
   // set safety mode to NO_OUTPUT when car is off or we're not onroad. ELM327 is an alternative if we want to leverage athenad/connect
-  bool should_close_relay = !ignition_local || !is_onroad;
+  bool should_close_relay = psa_t15.enabled() || !ignition_local || !is_onroad;
   if (should_close_relay && (health.safety_mode_pkt != (uint8_t)(cereal::CarParams::SafetyModel::NO_OUTPUT))) {
     panda->set_safety_model(cereal::CarParams::SafetyModel::NO_OUTPUT);
   }
@@ -295,8 +310,8 @@ void send_peripheral_state(Panda *panda, PubMaster *pm) {
   pm->send("peripheralState", msg);
 }
 
-void process_panda_state(Panda *panda, PubMaster *pm, bool engaged, bool is_onroad, bool spoofing_started) {
-  auto ignition_opt = send_panda_states(pm, panda, is_onroad, spoofing_started);
+void process_panda_state(Panda *panda, PubMaster *pm, bool engaged, bool is_onroad, bool spoofing_started, PsaT15Ignition &psa_t15) {
+  auto ignition_opt = send_panda_states(pm, panda, is_onroad, spoofing_started, psa_t15);
   if (!ignition_opt) {
     LOGE("Failed to get ignition_opt");
     return;
@@ -395,9 +410,12 @@ void process_peripheral_state(Panda *panda, PubMaster *pm, bool no_fan_control, 
 }
 
 void pandad_run(Panda *panda) {
+  const char *psa_mode = getenv("PSA_DASHCAM_ONLY");
+  const bool psa_dashcam_only = psa_mode != nullptr && std::string(psa_mode) == "1";
+  PsaT15Ignition psa_t15(psa_dashcam_only);
   const bool no_fan_control = getenv("NO_FAN_CONTROL") != nullptr;
   const bool spoofing_started = getenv("STARTED") != nullptr;
-  const bool fake_send = getenv("FAKESEND") != nullptr;
+  const bool fake_send = psa_dashcam_only || getenv("FAKESEND") != nullptr;
 
   // Start helper threads for event-driven sendcan and slow non-Panda reads.
   std::thread send_thread(can_send_thread, panda, fake_send);
@@ -406,13 +424,13 @@ void pandad_run(Panda *panda) {
   RateKeeper rk("pandad", 100);
   SubMaster sm({"selfdriveState", "deviceState"});
   PubMaster pm({"can", "pandaStates", "peripheralState"});
-  PandaSafety panda_safety(panda);
+  PandaSafety panda_safety(panda, psa_dashcam_only);
   bool engaged = false;
   bool is_onroad = false;
 
   // Main loop: receive CAN first, then process lower priority panda and peripheral state.
   while (!do_exit && check_connected(panda)) {
-    can_recv(panda, &pm);
+    can_recv(panda, &pm, psa_t15);
 
     // Process peripheral state at 20 Hz
     if (rk.frame() % 5 == 0) {
@@ -426,7 +444,7 @@ void pandad_run(Panda *panda) {
       if (sm.updated("deviceState")) {
         is_onroad = sm["deviceState"].getDeviceState().getStarted();
       }
-      process_panda_state(panda, &pm, engaged, is_onroad, spoofing_started);
+      process_panda_state(panda, &pm, engaged, is_onroad, spoofing_started, psa_t15);
       panda_safety.configureSafetyMode(is_onroad);
     }
 

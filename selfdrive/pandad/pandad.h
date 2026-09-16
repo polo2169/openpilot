@@ -9,7 +9,7 @@ void pandad_main_thread(std::string serial);
 
 class PandaSafety {
 public:
-  PandaSafety(Panda *panda) : panda_(panda) {}
+  PandaSafety(Panda *panda, bool dashcam_only = false) : panda_(panda), dashcam_only_(dashcam_only) {}
   void configureSafetyMode(bool is_onroad);
 
 private:
@@ -22,5 +22,6 @@ private:
   bool safety_configured_ = false;
   bool prev_obd_multiplexing_ = false;
   Panda *panda_;
+  const bool dashcam_only_;
   Params params_;
 };

@@ -3,6 +3,15 @@
 #include "common/swaglog.h"
 
 void PandaSafety::configureSafetyMode(bool is_onroad) {
+  // Passive PSA identification never needs ELM327 or an active safety model.
+  if (dashcam_only_) {
+    if (!safety_configured_) {
+      panda_->set_safety_model(cereal::CarParams::SafetyModel::NO_OUTPUT);
+      safety_configured_ = true;
+    }
+    return;
+  }
+
   if (is_onroad && !safety_configured_) {
     updateMultiplexingMode();
 
