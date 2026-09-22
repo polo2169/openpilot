@@ -7,6 +7,8 @@ from collections.abc import Callable
 
 from cereal import log, car
 import cereal.messaging as messaging
+from opendbc.car.psa.lateral_test import enabled as t9_lateral_enabled
+from opendbc.car.psa.values import CAR as PSACar
 from openpilot.common.constants import CV
 from openpilot.common.git import get_short_branch
 from openpilot.common.realtime import DT_CTRL
@@ -378,6 +380,21 @@ def personality_changed_alert(CP: car.CarParams, CS: car.CarState, sm: messaging
   return NormalPermanentAlert(f"Driving Personality: {personality}", duration=1.5)
 
 
+def steering_unavailable_alert(event_type: str) -> AlertCallbackType:
+  def alert(CP: car.CarParams, CS: car.CarState, sm: messaging.SubMaster, metric: bool, soft_disable_time: int, personality) -> Alert:
+    # This event also represents an immediate, latched T9 loss of authority.
+    # Do not diagnose a permanent fault or prescribe restarting a moving car.
+    temporary_t9 = (CP.carFingerprint == PSACar.PSA_PEUGEOT_308_T9 and CP.pcmCruise
+                    and t9_lateral_enabled(CP) and not CS.steerFaultPermanent)
+    if event_type == ET.IMMEDIATE_DISABLE:
+      return ImmediateDisableAlert("Steering Assist Unavailable" if temporary_t9 else "LKAS Fault: Restart the Car")
+    if event_type == ET.NO_ENTRY:
+      return NoEntryAlert("Steering Assist Unavailable" if temporary_t9 else "LKAS Fault: Restart the Car")
+    return (NormalPermanentAlert("Steering Assist Unavailable", "Manual control required") if temporary_t9
+            else NormalPermanentAlert("LKAS Fault: Restart the car to engage"))
+  return alert
+
+
 def invalid_lkas_setting_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.SubMaster, metric: bool, soft_disable_time: int, personality) -> Alert:
   text = "Toggle stock LKAS on or off to engage"
   if CP.brand == "tesla":
@@ -395,6 +412,35 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
 
   EventName.stockFcw: {},
   EventName.actuatorsApiUnavailable: {},
+  EventName.psaRvvUnavailable: {
+    ET.IMMEDIATE_DISABLE: ImmediateDisableAlert("RVV Assistance Stopped"),
+    ET.NO_ENTRY: NoEntryAlert("RVV Unavailable: Cruise OFF then ON"),
+  },
+
+  EventName.psaLateralAxisUnavailable: {
+    ET.WARNING: Alert("Steering Assist Stopped", "Steer manually - Cruise OFF/ON to rearm",
+                      AlertStatus.userPrompt, AlertSize.mid, Priority.HIGH,
+                      VisualAlert.steerRequired, AudibleAlert.warningSoft, 1.),
+  },
+  EventName.psaEpsCycling: {
+    ET.WARNING: Alert("EPS Test Cycle", "Steer manually during reactivation",
+                      AlertStatus.userPrompt, AlertSize.mid, Priority.HIGH,
+                      VisualAlert.steerRequired, AudibleAlert.none, .2),
+  },
+  EventName.psaLateralPaused: {
+    ET.WARNING: Alert("Steering Assist Paused", "Steer manually - automatic resume when ready",
+                      AlertStatus.normal, AlertSize.mid, Priority.LOW,
+                      VisualAlert.none, AudibleAlert.none, .2),
+  },
+  EventName.psaRvvAxisUnavailable: {
+    ET.WARNING: Alert("RVV Adaptation Stopped", "Control speed - Peugeot cruise remains active",
+                      AlertStatus.userPrompt, AlertSize.mid, Priority.HIGH,
+                      VisualAlert.none, AudibleAlert.warningSoft, 1.),
+  },
+  EventName.psaAxesUnavailable: {
+    ET.IMMEDIATE_DISABLE: ImmediateDisableAlert("Steering/RVV stopped - control speed and steering"),
+    ET.NO_ENTRY: NoEntryAlert("Assistance Stopped: Cruise OFF then ON"),
+  },
 
   # ********** events only containing alerts displayed in all states **********
 
@@ -961,9 +1007,9 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.steerUnavailable: {
-    ET.IMMEDIATE_DISABLE: ImmediateDisableAlert("LKAS Fault: Restart the Car"),
-    ET.PERMANENT: NormalPermanentAlert("LKAS Fault: Restart the car to engage"),
-    ET.NO_ENTRY: NoEntryAlert("LKAS Fault: Restart the Car"),
+    ET.IMMEDIATE_DISABLE: steering_unavailable_alert(ET.IMMEDIATE_DISABLE),
+    ET.PERMANENT: steering_unavailable_alert(ET.PERMANENT),
+    ET.NO_ENTRY: steering_unavailable_alert(ET.NO_ENTRY),
   },
 
   EventName.reverseGear: {

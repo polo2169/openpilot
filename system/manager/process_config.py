@@ -71,7 +71,8 @@ procs = [
   NativeProcess("encoderd", "system/loggerd", ["./encoderd"], only_onroad),
   NativeProcess("stream_encoderd", "system/loggerd", ["./encoderd", "--stream"], notcar),
   PythonProcess("logmessaged", "system.logmessaged", always_run),
-  PythonProcess("psa_recorder", "system.psa_recorder", always_run, enabled=os.getenv("PSA_DASHCAM_ONLY") == "1",
+  PythonProcess("psa_recorder", "system.psa_recorder", always_run,
+                enabled=os.getenv("PSA_DASHCAM_ONLY") == "1" or os.getenv("PSA_T9_LATERAL_TEST") == "1" or os.getenv("PSA_T9_RVV_TEST") == "1",
                 restart_if_crash=True),
 
   NativeProcess("camerad", "system/camerad", ["./camerad"], driverview, enabled=not WEBCAM),
@@ -82,6 +83,8 @@ procs = [
   PythonProcess("timed", "system.timed", always_run, enabled=not PC),
 
   PythonProcess("modeld", "selfdrive.modeld.modeld", only_onroad),
+  PythonProcess("psa_shadow", "system.psa_shadow", only_onroad, enabled=os.getenv("PSA_DASHCAM_ONLY") == "1",
+                restart_if_crash=True),
   PythonProcess("dmonitoringmodeld", "selfdrive.modeld.dmonitoringmodeld", driverview, enabled=(WEBCAM or not PC)),
 
   PythonProcess("sensord", "system.sensord.sensord", only_onroad, enabled=not PC),

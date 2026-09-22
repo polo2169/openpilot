@@ -55,6 +55,12 @@ class CANPacket:
   pass
 
 ffi.cdef("""
+uint8_t test_t9_rvv_request(uint16_t command, uint16_t sequence);
+uint8_t test_t9_rvv_control_request(uint16_t command, uint16_t sequence);
+uint8_t test_t9_rvv_permission_bits(void);
+bool get_t9_split_lateral_allowed(void);
+bool get_t9_split_rvv_allowed(void);
+bool test_t9_rvv_rewrite(CANPacket_t *msg, int destination);
 bool safety_rx_hook(CANPacket_t *msg);
 bool safety_tx_hook(CANPacket_t *msg);
 int safety_fwd_hook(int bus_num, int addr);

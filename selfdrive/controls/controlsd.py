@@ -1,30 +1,63 @@
 #!/usr/bin/env python3
+import json
 import math
+import time
+from dataclasses import replace
 from numbers import Number
 
-from cereal import car, log
-import cereal.messaging as messaging
+from cereal import car, log, messaging
+from opendbc.car.car_helpers import interfaces
+from opendbc.car.psa import rvv_wire
+from opendbc.car.psa.eps_cycle import T9EpsCycleGate
+from opendbc.car.psa.lateral_pause import T9LateralPause
+from opendbc.car.psa.rvv_following import T9RvvFollowingObserver
+from opendbc.car.psa.values import CAR as PSA_CAR
+from opendbc.car.vehicle_model import VehicleModel
 from openpilot.common.constants import CV
 from openpilot.common.params import Params
-from openpilot.common.realtime import config_realtime_process, DT_CTRL, Priority, Ratekeeper
+from openpilot.common.realtime import (
+  DT_CTRL,
+  Priority,
+  Ratekeeper,
+  config_realtime_process,
+)
 from openpilot.common.swaglog import cloudlog
-
-from opendbc.car.car_helpers import interfaces
-from opendbc.car.vehicle_model import VehicleModel
 from openpilot.selfdrive.controls.lib.drive_helpers import clip_curvature
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
+from openpilot.selfdrive.controls.lib.latcontrol_angle import (
+  STEER_ANGLE_SATURATION_THRESHOLD,
+  LatControlAngle,
+)
 from openpilot.selfdrive.controls.lib.latcontrol_pid import LatControlPID
-from openpilot.selfdrive.controls.lib.latcontrol_angle import LatControlAngle, STEER_ANGLE_SATURATION_THRESHOLD
-from openpilot.selfdrive.controls.lib.latcontrol_torque import LatControlTorque
+from openpilot.selfdrive.controls.lib.latcontrol_torque import (
+  LatControlTorque,
+  clip_t9_curvature_to_torque_envelope,
+)
 from openpilot.selfdrive.controls.lib.longcontrol import LongControl
+from openpilot.selfdrive.locationd.helpers import Pose, PoseCalibrator
 from openpilot.selfdrive.modeld.modeld import LAT_SMOOTH_SECONDS
-from openpilot.selfdrive.locationd.helpers import PoseCalibrator, Pose
 
 State = log.SelfdriveState.OpenpilotState
 LaneChangeState = log.LaneChangeState
 LaneChangeDirection = log.LaneChangeDirection
 
 ACTUATOR_FIELDS = tuple(car.CarControl.Actuators.schema.fields.keys())
+
+
+def t9_split_common_fault(sm, CS):
+  # Losing a common process or a driver stop must also remove steering,
+  # including when RVV adaptation had already stopped for a local reason.
+  return (not sm.all_checks(['selfdriveState', 'carState', 'driverMonitoringState', 'modelV2', 'liveCalibration'])
+          or not CS.canValid or CS.canTimeout or CS.brakePressed or CS.gasPressed or CS.blockPcmEnable)
+
+
+def publish_t9_rvv_request(pm, decision, now, engaged, *, split_axes=False):
+  request = messaging.new_message(rvv_wire.SERVICE, rvv_wire.WIRE.size)
+  request.valid = True
+  payload = rvv_wire.command(decision, now=now, engaged=engaged, split_axes=split_axes)
+  request.customReservedRawData0 = payload
+  pm.send(rvv_wire.SERVICE, request)
+  return payload
 
 
 class Controls:
@@ -35,11 +68,17 @@ class Controls:
     cloudlog.info("controlsd got CarParams")
 
     self.CI = interfaces[self.CP.carFingerprint](self.CP)
+    self.t9_split_axes = rvv_wire.split(self.CP)
+    self.t9_lateral_pause = T9LateralPause()
+    self.t9_eps_cycle = T9EpsCycleGate()
+    self.t9_rvv_following = T9RvvFollowingObserver(split_axes=self.t9_split_axes) if self.CP.carFingerprint == PSA_CAR.PSA_PEUGEOT_308_T9 else None
 
     self.sm = messaging.SubMaster(['liveDelay', 'liveParameters', 'liveTorqueParameters', 'modelV2', 'selfdriveState',
                                    'liveCalibration', 'livePose', 'longitudinalPlan', 'lateralManeuverPlan', 'carState', 'carOutput',
-                                   'driverMonitoringState', 'onroadEvents', 'driverAssistance'], poll='selfdriveState')
-    self.pm = messaging.PubMaster(['carControl', 'controlsState'])
+                                   'driverMonitoringState', 'onroadEvents', 'driverAssistance'] +
+                                  (['radarState'] if self.t9_rvv_following is not None else []), poll='selfdriveState')
+    self.t9_rvv_active = rvv_wire.enabled(self.CP)
+    self.pm = messaging.PubMaster(['carControl', 'controlsState'] + ([rvv_wire.SERVICE] if self.t9_rvv_active else []))
 
     self.steer_limited_by_safety = False
     self.curvature = 0.0
@@ -68,6 +107,18 @@ class Controls:
 
   def state_control(self):
     CS = self.sm['carState']
+    if self.t9_rvv_following is not None:
+      snapshot = self.t9_rvv_following.update(self.sm, time.monotonic_ns())
+      if snapshot is not None:
+        snapshot['panda_rvv_profile'] = self.t9_rvv_active
+        def clean(value):
+          if isinstance(value, dict):
+            return {k: clean(v) for k, v in value.items()}
+          return None if isinstance(value, float) and not math.isfinite(value) else value
+        try:
+          cloudlog.info('psa_t9_rvv_following ' + json.dumps(clean(snapshot), separators=(',', ':'), allow_nan=False))
+        except Exception:
+          pass  # Diagnostic logging cannot interrupt active lateral control.
 
     # Update VehicleModel
     lp = self.sm['liveParameters']
@@ -77,6 +128,8 @@ class Controls:
 
     steer_angle_without_offset = math.radians(CS.steeringAngleDeg - lp.angleOffsetDeg)
     self.curvature = -self.VM.calc_curvature(steer_angle_without_offset, CS.vEgo, lp.roll)
+    if isinstance(self.LaC, LatControlTorque) and self.LaC.t9_can_response:
+      self.curvature = -CS.yawRate / max(CS.vEgo, 1.)
 
     # Update Torque Params
     if self.CP.lateralTuning.which() == 'torque':
@@ -95,7 +148,47 @@ class Controls:
     standstill = abs(CS.vEgo) <= max(self.CP.minSteerSpeed, 0.3) or CS.standstill
     CC.latActive = self.sm['selfdriveState'].active and not CS.steerFaultTemporary and not CS.steerFaultPermanent and \
                    (not standstill or self.CP.steerAtStandstill)
+    if rvv_wire.only(self.CP):
+      CC.latActive = False
+    split_common_fault = self.t9_split_axes and (
+      t9_split_common_fault(self.sm, CS) or rvv_wire.common_fault(self.t9_rvv_following.decision)
+      # A partially enabled/soft-disabling session cannot silently release
+      # only RVV and later resume requests against its latched MCU stop.
+      # This development profile also refuses incomplete pre-engagement.
+      or (CC.enabled and self.sm['selfdriveState'].state != State.enabled))
+    if self.t9_split_axes and (CS.steeringDisengage or CS.steeringPressed or split_common_fault):
+      CC.latActive = False
+    if self.t9_split_axes:
+      pause_eligible = (CC.enabled and self.sm['selfdriveState'].state == State.enabled
+        and not split_common_fault and not CS.steeringDisengage
+        and not CS.steerFaultTemporary and not CS.steerFaultPermanent and not standstill)
+      CC.psaLateralPause = self.t9_lateral_pause.update(time.monotonic_ns(), eligible=pause_eligible,
+        car=CS, model=model_v2, model_valid=self.sm.all_checks(['modelV2']),
+        model_ns=self.sm.logMonoTime['modelV2'])
+      CC.psaLateralResume = pause_eligible and self.t9_lateral_pause.resume_requested
+      if CC.psaLateralPause:
+        CC.latActive = False
+      if rvv_wire.eps_cycle(self.CP):
+        CC.psaEpsCycleReady = self.t9_eps_cycle.update(time.monotonic_ns(), eligible=pause_eligible,
+          car=CS, model=model_v2, model_valid=self.sm.all_checks(['modelV2']),
+          model_ns=self.sm.logMonoTime['modelV2'])
+        if CS.psaEpsCycling:
+          # Keep the explicit cycle request, but reset the lateral controller
+          # throughout the zero-torque handshake to prevent integrator windup.
+          CC.latActive = False
     CC.longActive = CC.enabled and not any(e.overrideLongitudinal for e in self.sm['onroadEvents']) and self.CP.openpilotLongitudinalControl
+
+    if self.t9_rvv_active:
+      now = time.monotonic_ns()
+      decision = self.t9_rvv_following.decision
+      if split_common_fault:
+        decision = replace(decision, common_fault=True)
+      engaged = (CC.enabled and self.sm.all_checks(['selfdriveState', 'carState', 'driverMonitoringState'])
+                 and self.sm['selfdriveState'].state == State.enabled
+                 and not CS.brakePressed and not CS.gasPressed
+                 and not any(e.overrideLongitudinal for e in self.sm['onroadEvents']))
+      payload = publish_t9_rvv_request(self.pm, decision, now, engaged, split_axes=self.t9_split_axes)
+      self.t9_rvv_following.command_published(payload)
 
     actuators = CC.actuators
     actuators.longControlState = self.LoC.long_control_state
@@ -120,8 +213,18 @@ class Controls:
       new_desired_curvature = self.sm['lateralManeuverPlan'].desiredCurvature if CC.latActive else self.curvature
     else:
       new_desired_curvature = model_v2.action.desiredCurvature if CC.latActive else self.curvature
+    t9_torque_envelope_limited = False
+    if CC.latActive and isinstance(self.LaC, LatControlTorque) and self.LaC.t9_can_response:
+      # A fixed lateral-acceleration envelope naturally increases minimum
+      # turn radius with v^2. Do not feed the controller a curvature that the
+      # experimental +/-15 raw torque range cannot produce at the current speed.
+      new_desired_curvature, t9_torque_envelope_limited = clip_t9_curvature_to_torque_envelope(
+        CS.vEgo, new_desired_curvature, self.CP.maxLateralAccel)
     self.desired_curvature, curvature_limited = clip_curvature(CS.vEgo, self.desired_curvature, new_desired_curvature, lp.roll)
+    curvature_limited |= t9_torque_envelope_limited
     lat_delay = self.sm["liveDelay"].lateralDelay + LAT_SMOOTH_SECONDS
+    if isinstance(self.LaC, LatControlTorque) and self.LaC.t9_can_response:
+      lat_delay = self.CP.steerActuatorDelay + LAT_SMOOTH_SECONDS
 
     actuators.curvature = self.desired_curvature
     steer, steeringAngleDeg, lac_log = self.LaC.update(CC.latActive, CS, self.VM, lp,

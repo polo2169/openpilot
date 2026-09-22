@@ -40,6 +40,13 @@ void Panda::set_safety_model(cereal::CarParams::SafetyModel safety_model, uint16
   handle->control_write(0xdc, (uint16_t)safety_model, safety_param);
 }
 
+std::optional<std::array<uint8_t, 12>> Panda::t9_rvv_request(uint16_t command, uint16_t sequence) {
+  std::array<uint8_t, 12> reply{};
+  int size = handle->control_read(0xa9, command, sequence, reply.data(), reply.size());
+  if (size != int(reply.size()) || reply[0] != 1U) return std::nullopt;
+  return reply;
+}
+
 void Panda::set_alternative_experience(uint16_t alternative_experience) {
   handle->control_write(0xdf, alternative_experience, 0);
 }

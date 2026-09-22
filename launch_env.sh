@@ -21,6 +21,9 @@ fi
 
 export STAGING_ROOT="/data/safe_staging"
 
-# This device branch records the 308 T9; identification must only receive CAN.
+# Combined lateral/RVV trial; retain physical rearm and diagnostic-query exclusion.
 export SKIP_FW_QUERY=1
-export PSA_DASHCAM_ONLY=1
+export PSA_T9_LATERAL_TEST=1
+export PSA_T9_RVV_TEST=1
+export PSA_T9_SPLIT_AXES_TEST=1
+export PSA_DASHCAM_ONLY=0

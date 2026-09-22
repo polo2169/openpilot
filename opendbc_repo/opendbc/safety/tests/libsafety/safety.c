@@ -214,3 +214,11 @@ void init_tests(void){
   ignition_can = false;
   ignition_can_cnt = 0U;
 }
+
+uint8_t test_t9_rvv_request(uint16_t command, uint16_t sequence) { return rvv_request(command, sequence); }
+bool test_t9_rvv_rewrite(CANPacket_t *msg, int destination) { return rvv_rewrite(msg, destination); }
+
+uint8_t test_t9_rvv_control_request(uint16_t command, uint16_t sequence) { return rvv_control_request(command, sequence); }
+uint8_t test_t9_rvv_permission_bits(void) { return rvv_permission_bits(); }
+bool get_t9_split_lateral_allowed(void) { return t9_split_lateral_allowed; }
+bool get_t9_split_rvv_allowed(void) { return t9_split_rvv_allowed; }

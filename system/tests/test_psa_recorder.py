@@ -69,6 +69,20 @@ class TestPSARecorder(unittest.TestCase):
       finally:
         writer.close()
 
+  def test_entrypoint_keeps_recording_in_each_psa_profile(self):
+    from openpilot.system.psa_recorder import main
+    modes = ('PSA_DASHCAM_ONLY', 'PSA_T9_LATERAL_TEST', 'PSA_T9_RVV_TEST')
+    with patch.dict(os.environ, dict.fromkeys(modes, '0')):
+      with patch('openpilot.system.psa_recorder.record') as run:
+        main()
+        run.assert_not_called()
+      for mode in modes:
+        with patch.dict(os.environ, {mode: '1'}), \
+             patch('openpilot.system.psa_recorder.record', side_effect=KeyboardInterrupt) as run:
+          with self.assertRaises(KeyboardInterrupt):
+            main()
+          run.assert_called_once_with()
+
   def test_offroad_can_and_state_events_are_readable_without_transmission(self):
     from cereal import messaging
     from openpilot.tools.lib.logreader import LogReader
@@ -83,6 +97,13 @@ class TestPSARecorder(unittest.TestCase):
     device.deviceState.started = False
     peripheral = messaging.new_message("peripheralState", valid=True)
     events = [can, panda, device, peripheral]
+    for service in SERVICES[4:]:
+      if service == 'logMessage':
+        event = messaging.new_message(None)
+        event.logMessage = '{"msg":"psa_t9_lateral test_cut"}'
+      else:
+        event = messaging.new_message(service, 0, valid=True) if service in ('sendcan', 'onroadEvents', 'customReservedRawData0') else messaging.new_message(service, valid=True)
+      events.append(event)
     sockets = [MagicMock() for _ in SERVICES]
     # msgq.Poller returns fresh wrappers, not the subscription objects.
     polled_sockets = [MagicMock() for _ in SERVICES]
@@ -110,6 +131,7 @@ class TestPSARecorder(unittest.TestCase):
       self.assertEqual(saved[0].can[0].dat, b"\x12\x34")
       self.assertEqual(saved[1].pandaStates[0].canState2.totalErrorCnt, 6404)
       self.assertFalse(saved[2].deviceState.started)
+      self.assertIn('psa_t9_lateral test_cut', saved[SERVICES.index('logMessage')].logMessage)
       self.assertEqual([call.args[0] for call in subscribe.call_args_list], list(SERVICES))
       publish.assert_not_called()
       # An abrupt power cut can leave a partial last event. Keep the complete prefix.

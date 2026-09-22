@@ -1,4 +1,4 @@
-"""Bounded local CAN recording before ignition, for the PSA dashcam branch.
+"""Bounded local recording before/after ignition for PSA dashcam/lateral tests.
 
 Only subscribes to existing cereal messages. No Panda access, Params writes,
 CAN transmission, camera activation, ignition override or automatic upload.
@@ -15,7 +15,12 @@ import shutil
 import time
 import uuid
 
-SERVICES = ("can", "pandaStates", "deviceState", "peripheralState")
+# loggerd already records carState onroad. The native stack has 14 readers
+# of that service with this build (msgq supports 15). Do not consume the last
+# slot here: an extra diagnostic reader would evict live control consumers.
+SERVICES = ("can", "pandaStates", "deviceState", "peripheralState", "sendcan",
+            "carControl", "carOutput", "controlsState", "selfdriveState",
+            "onroadEvents", "carParams", "logMessage", "customReservedRawData0")
 LOG_ROOT = Path("/data/psa-diagnostics")
 SEGMENT_BYTES = 16 * 1024 * 1024
 MAX_SEGMENTS = 32
@@ -129,6 +134,7 @@ def record(root=LOG_ROOT, duration=None):
         writer.flush()
         status = {"session": writer.session, "uptime_s": now - started, "messages_received": counts,
                   "bytes_written": writer.written, "storage_drops": storage_drops,
+                  "car_state_source": "loggerd route rlogs (not duplicated in this recorder)",
                   "transport_loss": "unknown; compare Panda RX/overflow counters with saved CAN",
                   "current_file": Path(writer.file.name).name if writer.file else None}
         temporary = Path(root) / "status.json.tmp"
@@ -140,7 +146,7 @@ def record(root=LOG_ROOT, duration=None):
 
 
 def main():
-  if os.environ.get("PSA_DASHCAM_ONLY") != "1":
+  if not any(os.environ.get(name) == "1" for name in ("PSA_DASHCAM_ONLY", "PSA_T9_LATERAL_TEST", "PSA_T9_RVV_TEST")):
     return
   while True:
     try:

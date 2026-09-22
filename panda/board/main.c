@@ -131,6 +131,25 @@ static void tick_handler(void) {
     simple_watchdog_kick();
     sound_tick();
 
+    // Independent MCU fallback for the dedicated T9 development profile.
+    // Reconnect the factory path on a failed split or a lost command stream;
+    // host software cannot keep a stale steering lease alive by heartbeating.
+    if ((current_safety_mode == SAFETY_PSA) &&
+        ((current_safety_param == PSA_T9_LATERAL_PARAM) || (current_safety_param == PSA_T9_PROBE_PARAM) || rvv_combined_profile())) {
+      bool lost_command = t9_output_lease_expired(microsecond_timer_get());
+      if (t9_wiring_fault || relay_malfunction || lost_command) {
+        if (t9_wiring_fault) { print("T9 fallback: wiring_fault\n"); }
+        else if (relay_malfunction) { print("T9 fallback: relay_fault\n"); }
+        else { print("T9 fallback: command_lease_expired\n"); }
+        set_safety_mode(SAFETY_NOOUTPUT, 0U);
+      }
+    }
+
+    if (rvv_profile() && (rvv_fault || relay_malfunction)) {
+      print("T9 RVV fallback: wiring or relay fault\n");
+      set_safety_mode(SAFETY_NOOUTPUT, 0U);
+    }
+
     if (relay_malfunction_prev != relay_malfunction) {
       if (relay_malfunction) {
         fault_occurred(FAULT_RELAY_MALFUNCTION);
@@ -202,6 +221,7 @@ static void tick_handler(void) {
         heartbeat_engaged_mismatches += 1U;
         if (heartbeat_engaged_mismatches >= 3U) {
           controls_allowed = false;
+          t9_split_sync_common_stop();
         }
       } else {
         heartbeat_engaged_mismatches = 0U;

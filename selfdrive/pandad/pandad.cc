@@ -1,11 +1,13 @@
 #include "selfdrive/pandad/pandad.h"
 #include "selfdrive/pandad/psa_t15.h"
+#include "selfdrive/pandad/psa_t9_rvv_wire.h"
 
 #include <array>
 #include <atomic>
 #include <bitset>
 #include <cassert>
 #include <cerrno>
+#include <chrono>
 #include <memory>
 #include <thread>
 #include <utility>
@@ -66,8 +68,9 @@ Panda *connect(std::string serial) {
   return panda.release();
 }
 
-void can_send_thread(Panda *panda, bool fake_send) {
+void can_send_thread(Panda *panda, bool fake_send, PsaT9Guard *t9_guard) {
   util::set_thread_name("pandad_can_send");
+  PsaT9TxTiming t9_timing;
 
   AlignedBuffer aligned_buf;
   std::unique_ptr<Context> context(Context::create());
@@ -84,11 +87,39 @@ void can_send_thread(Panda *panda, bool fake_send) {
 
     capnp::FlatArrayMessageReader cmsg(aligned_buf.align(msg.get()));
     cereal::Event::Reader event = cmsg.getRoot<cereal::Event>();
+    if (t9_guard != nullptr) {
+      const auto frames = event.getSendcan();
+      if (frames.size() == 0 || t9_guard->rvv_only()) continue;
+      const uint64_t now = nanos_since_boot();
+      bool permitted = t9_guard->tx_ready.load() && event.getValid() && now >= event.getLogMonoTime() &&
+                       now-event.getLogMonoTime() <= 100000000ULL && frames.size() == 1;
+      bool nonzero_torque = false;
+      for (auto frame : frames) {
+        permitted &= frame.getAddress() == 0x3F2U && frame.getSrc() == 0U && frame.getDat().size() == 8;
+        if (frame.getDat().size() == 8) {
+          nonzero_torque |= frame.getDat()[3] != 0 || (frame.getDat()[4] & 0xE0U) != 0;
+        }
+      }
+      if (!permitted) continue;
+      // can_send returns after the synchronous MCU write/ACK. Measuring from
+      // that completion is conservative even when its SPI transaction retried.
+      // Zero-torque releases are never delayed by this pacing rule.
+      uint64_t delay = t9_timing.delay_ns(now, nonzero_torque);
+      if (delay) LOGD("T9 steering TX pacing: %" PRIu64 " ns", delay);
+      while (delay && !do_exit && t9_guard->tx_ready.load()) {
+        std::this_thread::sleep_for(std::chrono::nanoseconds(delay));
+        delay = t9_timing.delay_ns(nanos_since_boot(), nonzero_torque);
+      }
+      const uint64_t send_time = nanos_since_boot();
+      if (do_exit || !t9_guard->tx_ready.load() || send_time < event.getLogMonoTime() ||
+          send_time-event.getLogMonoTime() > 100000000ULL) continue;
+    }
 
     // Don't send if older than 1 second
     if ((nanos_since_boot() - event.getLogMonoTime() < 1e9) && !fake_send) {
       LOGT("sending sendcan to panda: %s", (panda->hw_serial()).c_str());
       panda->can_send(event.getSendcan());
+      if (t9_guard != nullptr) t9_timing.completed(nanos_since_boot());
       LOGT("sendcan sent to panda: %s", (panda->hw_serial()).c_str());
     } else {
       LOGE("sendcan too old to send: %" PRIu64 ", %" PRIu64, nanos_since_boot(), event.getLogMonoTime());
@@ -96,12 +127,13 @@ void can_send_thread(Panda *panda, bool fake_send) {
   }
 }
 
-void can_recv(Panda *panda, PubMaster *pm, PsaT15Ignition &psa_t15) {
+void can_recv(Panda *panda, PubMaster *pm, PsaT15Ignition &psa_t15, PsaT9Guard *t9_guard) {
   static std::vector<can_frame> raw_can_data;
   {
     raw_can_data.clear();
     bool comms_healthy = panda->can_receive(raw_can_data);
     if (!comms_healthy) psa_t15.reset();
+    if (!comms_healthy && t9_guard != nullptr) t9_guard->fail("can_transport_lost");
     const uint64_t received_ns = nanos_since_boot();
 
     MessageBuilder msg;
@@ -112,6 +144,7 @@ void can_recv(Panda *panda, PubMaster *pm, PsaT15Ignition &psa_t15) {
       if (comms_healthy) {
         const auto &frame = raw_can_data[i];
         psa_t15.update(frame.address, frame.src, reinterpret_cast<const uint8_t *>(frame.dat.data()), frame.dat.size(), received_ns);
+        if (t9_guard != nullptr) t9_guard->update(frame.address, frame.src, reinterpret_cast<const uint8_t *>(frame.dat.data()), frame.dat.size(), received_ns);
       }
       canData[i].setAddress(raw_can_data[i].address);
       canData[i].setDat(kj::arrayPtr((uint8_t*)raw_can_data[i].dat.data(), raw_can_data[i].dat.size()));
@@ -244,7 +277,10 @@ std::optional<bool> send_panda_states(PubMaster *pm, Panda *panda, bool is_onroa
   }
 
   // set safety mode to NO_OUTPUT when car is off or we're not onroad. ELM327 is an alternative if we want to leverage athenad/connect
-  bool should_close_relay = psa_t15.enabled() || !ignition_local || !is_onroad;
+  const char *t9_mode = getenv("PSA_T9_LATERAL_TEST");
+  const char *rvv_mode = getenv("PSA_T9_RVV_TEST");
+  const bool t9_test = (t9_mode != nullptr && std::string(t9_mode) == "1") || (rvv_mode != nullptr && std::string(rvv_mode) == "1");
+  bool should_close_relay = (psa_t15.enabled() && !t9_test) || !ignition_local || !is_onroad;
   if (should_close_relay && (health.safety_mode_pkt != (uint8_t)(cereal::CarParams::SafetyModel::NO_OUTPUT))) {
     panda->set_safety_model(cereal::CarParams::SafetyModel::NO_OUTPUT);
   }
@@ -412,25 +448,83 @@ void process_peripheral_state(Panda *panda, PubMaster *pm, bool no_fan_control, 
 void pandad_run(Panda *panda) {
   const char *psa_mode = getenv("PSA_DASHCAM_ONLY");
   const bool psa_dashcam_only = psa_mode != nullptr && std::string(psa_mode) == "1";
-  PsaT15Ignition psa_t15(psa_dashcam_only);
+  const char *t9_mode = getenv("PSA_T9_LATERAL_TEST");
+  const char *rvv_mode = getenv("PSA_T9_RVV_TEST");
+  const bool rvv_test = !psa_dashcam_only && rvv_mode != nullptr && std::string(rvv_mode) == "1";
+  const bool t9_test = !psa_dashcam_only && ((t9_mode != nullptr && std::string(t9_mode) == "1") || rvv_test);
+  PsaT15Ignition psa_t15(psa_dashcam_only || t9_test);
+  const bool combined_test = rvv_test && t9_mode != nullptr && std::string(t9_mode) == "1";
+  const char *split_mode = getenv("PSA_T9_SPLIT_AXES_TEST");
+  const bool split_axes_test = combined_test && split_mode != nullptr && std::string(split_mode) == "1";
+  const char *cycle_mode = getenv("PSA_T9_EPS_CYCLE_TEST");
+  const bool eps_cycle_test = split_axes_test && cycle_mode != nullptr && std::string(cycle_mode) == "1";
+  PsaT9Guard t9_guard(rvv_test, combined_test, split_axes_test, eps_cycle_test);
   const bool no_fan_control = getenv("NO_FAN_CONTROL") != nullptr;
   const bool spoofing_started = getenv("STARTED") != nullptr;
   const bool fake_send = psa_dashcam_only || getenv("FAKESEND") != nullptr;
 
+  if (rvv_test) {
+    // Prove new-profile support BEFORE selecting even the probe parameter.
+    // An old firmware could route an unknown PSA parameter to generic hooks.
+    auto protocol = panda->t9_rvv_request(0U, eps_cycle_test ? 4U : split_axes_test ? 2U : 0U);
+    if (!protocol || (*protocol)[1] != (eps_cycle_test ? 8U : split_axes_test ? 7U : 6U)) {
+      LOGE("T9 RVV mailbox capability check failed");
+      return;
+    }
+    if (eps_cycle_test) { LOGW("T9 EPS cycle capability confirmed by read-only query"); }
+    LOGW("T9 RVV mailbox capabilities confirmed by read-only query (split_axes=%d)", split_axes_test);
+  }
+
   // Start helper threads for event-driven sendcan and slow non-Panda reads.
-  std::thread send_thread(can_send_thread, panda, fake_send);
+  std::thread send_thread(can_send_thread, panda, fake_send, t9_test ? &t9_guard : nullptr);
   std::thread hardware_thread(hwmon_thread);
 
   RateKeeper rk("pandad", 100);
   SubMaster sm({"selfdriveState", "deviceState"});
   PubMaster pm({"can", "pandaStates", "peripheralState"});
-  PandaSafety panda_safety(panda, psa_dashcam_only);
+  PandaSafety panda_safety(panda, psa_dashcam_only, t9_test ? &t9_guard : nullptr);
+  std::unique_ptr<SubMaster> rvv_sm;
+  if (rvv_test) rvv_sm = std::make_unique<SubMaster>(std::initializer_list<const char *>{"customReservedRawData0"});
+  uint16_t rvv_sequence = 0;
+  uint16_t rvv_last_command = 0;
+  uint8_t rvv_last_status = 255;
+  uint8_t rvv_last_permissions = 255;
   bool engaged = false;
   bool is_onroad = false;
 
   // Main loop: receive CAN first, then process lower priority panda and peripheral state.
   while (!do_exit && check_connected(panda)) {
-    can_recv(panda, &pm, psa_t15);
+    can_recv(panda, &pm, psa_t15, t9_test ? &t9_guard : nullptr);
+
+    // RVV requests use a separate MCU mailbox, never sendcan. A stale or
+    // malformed host event releases; even valid events need the physical
+    // cruise edge and independently checked inputs inside Panda.
+    if (rvv_sm && rk.frame() % 5 == 0 && t9_guard.tx_ready.load() && !fake_send) {
+      rvv_sm->update(0);
+      uint16_t command = split_axes_test ? 0x2200U : 0x1000U;
+      if (rvv_sm->valid("customReservedRawData0")) {
+        auto event = (*rvv_sm)["customReservedRawData0"];
+        if (event.isCustomReservedRawData0()) {
+          auto data = event.getCustomReservedRawData0();
+          command = t9_rvv_command(data.begin(), data.size(), nanos_since_boot(), event.getLogMonoTime(), event.getValid(), split_axes_test);
+        }
+      }
+      auto reply = panda->t9_rvv_request(command, ++rvv_sequence);
+      if (!reply) {
+        t9_guard.fail("rvv_mailbox_transport_failure");
+        LOGE("T9 RVV mailbox transport failure; restoring stock path");
+      } else if (command != rvv_last_command || (*reply)[1] != rvv_last_status ||
+                 (*reply)[5] != rvv_last_permissions || rk.frame() % 100 == 0) {
+        uint32_t rewrites = uint32_t((*reply)[8]) | (uint32_t((*reply)[9]) << 8) | (uint32_t((*reply)[10]) << 16) | (uint32_t((*reply)[11]) << 24);
+        LOGW("psa_t9_rvv_panda command=%u status=%u applied=%u target=%u stock=%u allowed=%u seq=%u rewrites=%u",
+          command, (*reply)[1], (*reply)[2], (*reply)[3], (*reply)[4], (*reply)[5] & 1U, rvv_sequence, rewrites);
+        if (split_axes_test) {
+          LOGW("psa_t9_axes_panda lateral_allowed=%u rvv_allowed=%u seq=%u",
+               ((*reply)[5] >> 1) & 1U, ((*reply)[5] >> 2) & 1U, rvv_sequence);
+        }
+        rvv_last_command = command; rvv_last_status = (*reply)[1]; rvv_last_permissions = (*reply)[5];
+      }
+    }
 
     // Process peripheral state at 20 Hz
     if (rk.frame() % 5 == 0) {

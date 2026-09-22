@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <ctime>
 #include <functional>
@@ -62,6 +63,7 @@ public:
   // Panda functionality
   cereal::PandaState::PandaType get_hw_type();
   void set_safety_model(cereal::CarParams::SafetyModel safety_model, uint16_t safety_param=0U);
+  std::optional<std::array<uint8_t, 12>> t9_rvv_request(uint16_t command, uint16_t sequence);
   void set_alternative_experience(uint16_t alternative_experience);
   std::string serial_read(int port_number = 0);
   void set_uart_baud(int uart, int rate);

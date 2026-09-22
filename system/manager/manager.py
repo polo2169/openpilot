@@ -44,6 +44,11 @@ def manager_init() -> None:
     if default_value is not None and params.get(k) is None:
       params.put(k, default_value, block=True)
 
+  # Snapshot once per manager startup so card and pandad always select the
+  # same profile. Changing the offroad toggle requires a restart.
+  from openpilot.system.manager.psa_t9_settings import configure_eps_cycle
+  configure_eps_cycle(params)
+
   # Create folders needed for msgq
   try:
     os.mkdir(Paths.shm_path())

@@ -74,6 +74,21 @@ int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
 #endif
 
   switch (req->request) {
+    // **** 0xa9: T9 RVV target lease, status version 1 (never a vehicle frame)
+    case 0xa9:
+      ENTER_CRITICAL();
+      resp[0] = 1U;
+      resp[1] = rvv_control_request(req->param1, req->param2);
+      resp[2] = rvv_applied_seen ? rvv_applied : 0U;
+      resp[3] = rvv_requested ? rvv_target : 0U;
+      resp[4] = rvv_ceiling;
+      resp[5] = rvv_permission_bits();
+      resp[6] = rvv_seq & 0xFFU;
+      resp[7] = rvv_seq >> 8;
+      for (unsigned int i = 0U; i < 4U; i++) { resp[8U + i] = (rvv_rewrites >> (8U * i)) & 0xFFU; }
+      resp_len = 12U;
+      EXIT_CRITICAL();
+      break;
     // **** 0xa8: get microsecond timer
     case 0xa8:
       time = microsecond_timer_get();

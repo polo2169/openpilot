@@ -1,15 +1,18 @@
 import colorsys
 import numpy as np
 import pyray as rl
-from cereal import messaging, car
+from cereal import messaging, car, log
 from dataclasses import dataclass, field
 from openpilot.common.params import Params
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.selfdrive.locationd.calibrationd import HEIGHT_INIT
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 from openpilot.selfdrive.ui.mici.onroad import blend_colors
-from openpilot.system.ui.lib.application import gui_app
+from openpilot.selfdrive.ui.mici.onroad.lane_confidence import lane_probabilities
+from openpilot.selfdrive.ui.mici.onroad.lead_indicator import lead_speed_text, visible_lead
+from openpilot.system.ui.lib.application import FontWeight, gui_app
 from openpilot.system.ui.lib.shader_polygon import draw_polygon, Gradient
+from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.widgets import Widget
 
 CLIP_MARGIN = 500
@@ -46,6 +49,7 @@ class LeadVehicle:
   glow: list[float] = field(default_factory=list)
   chevron: list[float] = field(default_factory=list)
   fill_alpha: int = 0
+  speed_text: str = ''
 
 
 class ModelRenderer(Widget):
@@ -57,7 +61,7 @@ class ModelRenderer(Widget):
     self._prev_allow_throttle = True
     self._lane_line_probs = np.zeros(4, dtype=np.float32)
     self._road_edge_stds = np.zeros(2, dtype=np.float32)
-    self._lead_vehicles = [LeadVehicle(), LeadVehicle()]
+    self._lead_vehicles = []
     self._path_offset_z = HEIGHT_INIT[0]
 
     # Initialize ModelPoints objects
@@ -100,7 +104,9 @@ class ModelRenderer(Widget):
 
     # Check if data is up-to-date
     if (sm.recv_frame["liveCalibration"] < ui_state.started_frame or
-        sm.recv_frame["modelV2"] < ui_state.started_frame):
+        not sm.valid['liveCalibration'] or not sm.alive['liveCalibration'] or
+        sm['liveCalibration'].calStatus != log.LiveCalibrationData.Status.calibrated or
+        lane_probabilities(sm, ui_state.started_frame) is None):
       return
 
     # Set up clipping region
@@ -118,9 +124,7 @@ class ModelRenderer(Widget):
       self._longitudinal_control = sm['carParams'].openpilotLongitudinalControl
 
     model = sm['modelV2']
-    radar_state = sm['radarState'] if sm.valid['radarState'] else None
-    lead_one = radar_state.leadOne if radar_state else None
-    render_lead_indicator = self._longitudinal_control and radar_state is not None
+    lead_one = visible_lead(sm, ui_state.started_frame)
 
     # Update model data when needed
     model_updated = sm.updated['modelV2']
@@ -133,17 +137,18 @@ class ModelRenderer(Widget):
         return
 
       self._update_model(lead_one, path_x_array)
-      if render_lead_indicator:
-        self._update_leads(radar_state, path_x_array)
       self._transform_dirty = False
 
-    # Draw elements (hide when disengaged)
-    if ui_state.status != UIStatus.DISENGAGED:
-      self._draw_lane_lines()
-      self._draw_path(sm)
+    # Re-evaluate every UI frame so a lost/stale lead clears its cached marker
+    # even when no replacement radar message arrives. This is perception only.
+    self._update_leads(lead_one, self._path.raw_points[:, 0])
 
-    # if render_lead_indicator and radar_state:
-    #   self._draw_lead_indicator()
+    # Show fresh perception even when engagement is refused. The path stays
+    # neutral until lateral control is active; visibility is not engagement.
+    self._draw_lane_lines()
+    self._draw_path(sm)
+
+    self._draw_lead_indicator()
 
   def _update_raw_points(self, model):
     """Update raw 3D points from model data"""
@@ -159,21 +164,20 @@ class ModelRenderer(Widget):
     self._road_edge_stds = np.array(model.roadEdgeStds, dtype=np.float32)
     self._acceleration_x = np.array(model.acceleration.x, dtype=np.float32)
 
-  def _update_leads(self, radar_state, path_x_array):
-    """Update positions of lead vehicles"""
-    self._lead_vehicles = [LeadVehicle(), LeadVehicle()]
-    leads = [radar_state.leadOne, radar_state.leadTwo]
+  def _update_leads(self, lead, path_x_array):
+    """Project the same primary lead used by the RVV following observer."""
+    self._lead_vehicles = []
+    if lead is None or path_x_array.size == 0:
+      return
 
-    for i, lead_data in enumerate(leads):
-      if lead_data and lead_data.status:
-        d_rel, y_rel, v_rel = lead_data.dRel, lead_data.yRel, lead_data.vRel
-        idx = self._get_path_length_idx(path_x_array, d_rel)
-
-        # Get z-coordinate from path at the lead vehicle position
-        z = self._path.raw_points[idx, 2] if idx < len(self._path.raw_points) else 0.0
-        point = self._map_to_screen(d_rel, -y_rel, z + self._path_offset_z)
-        if point:
-          self._lead_vehicles[i] = self._update_lead_vehicle(d_rel, v_rel, point, self._rect)
+    d_rel, y_rel, v_rel = lead.dRel, lead.yRel, lead.vRel
+    idx = self._get_path_length_idx(path_x_array, d_rel)
+    z = self._path.raw_points[idx, 2]
+    point = self._map_to_screen(d_rel, -y_rel, z + self._path_offset_z)
+    if point is not None:
+      vehicle = self._update_lead_vehicle(d_rel, v_rel, point, self._rect)
+      vehicle.speed_text = lead_speed_text(lead, ui_state.is_metric)
+      self._lead_vehicles.append(vehicle)
 
   def _update_model(self, lead, path_x_array):
     """Update model visualization data based on model message"""
@@ -301,7 +305,7 @@ class ModelRenderer(Widget):
       color = rl.Color(255, 255, 255, int(alpha * 255))
 
     if ui_state.status == UIStatus.DISENGAGED:
-      color = rl.Color(0, 0, 0, int(alpha * 255))
+      color = rl.Color(220, 220, 220, int(alpha * 255))
 
     return color
 
@@ -329,16 +333,19 @@ class ModelRenderer(Widget):
     if not self._path.projected_points.size:
       return
 
+    path_pts = self._path.projected_points + np.array([self._rect.x, self._rect.y], dtype=np.float32)
+    lateral_active = (ui_state.status == UIStatus.ENGAGED and sm.valid['carControl'] and sm.alive['carControl'] and
+                      sm.recv_frame['carControl'] >= ui_state.started_frame and sm['carControl'].latActive)
+    if not lateral_active:
+      draw_polygon(self._rect, path_pts, rl.Color(210, 210, 210, 90))
+      return
+
     allow_throttle = sm['longitudinalPlan'].allowThrottle or not self._longitudinal_control
     self._blend_filter.update(int(allow_throttle))
 
-    path_pts = self._path.projected_points + np.array([self._rect.x, self._rect.y], dtype=np.float32)
-
     if self._experimental_mode:
       # Draw with acceleration coloring
-      if ui_state.status == UIStatus.DISENGAGED:
-        draw_polygon(self._rect, path_pts, rl.Color(0, 0, 0, 90))
-      elif len(self._exp_gradient.colors) > 1:
+      if len(self._exp_gradient.colors) > 1:
         draw_polygon(self._rect, path_pts, gradient=self._exp_gradient)
       else:
         draw_polygon(self._rect, path_pts, rl.Color(255, 255, 255, 30))
@@ -353,10 +360,7 @@ class ModelRenderer(Widget):
         stops=[0.0, 0.5, 1.0],
       )
 
-      if ui_state.status == UIStatus.DISENGAGED:
-        draw_polygon(self._rect, path_pts, rl.Color(0, 0, 0, 90))
-      else:
-        draw_polygon(self._rect, path_pts, gradient=gradient)
+      draw_polygon(self._rect, path_pts, gradient=gradient)
 
   def _draw_lead_indicator(self):
     # Draw lead vehicles if available
@@ -364,8 +368,32 @@ class ModelRenderer(Widget):
       if not lead.glow or not lead.chevron:
         continue
 
-      rl.draw_triangle_fan(lead.glow, len(lead.glow), rl.Color(218, 202, 37, 255))
-      rl.draw_triangle_fan(lead.chevron, len(lead.chevron), rl.Color(201, 34, 49, lead.fill_alpha))
+      glow = [rl.Vector2(x + self._rect.x, y + self._rect.y) for x, y in lead.glow]
+      chevron = [rl.Vector2(x + self._rect.x, y + self._rect.y) for x, y in lead.chevron]
+      rl.draw_triangle_fan(glow, len(glow), rl.Color(218, 202, 37, 255))
+      rl.draw_triangle_fan(chevron, len(chevron), rl.Color(201, 34, 49, lead.fill_alpha))
+      if lead.speed_text:
+        self._draw_lead_speed(lead.speed_text, glow)
+
+  def _draw_lead_speed(self, text, glow):
+    font = gui_app.font(FontWeight.MEDIUM)
+    font_size, padding, gap = 22, 7, 8
+    text_size = measure_text_cached(font, text, font_size)
+    width, height = text_size.x + 2 * padding, text_size.y + 2 * padding
+    rect = self._rect
+    if width > rect.width - 2 * gap or height > rect.height - 2 * gap:
+      return
+
+    left, right = min(p.x for p in glow), max(p.x for p in glow)
+    top, bottom = min(p.y for p in glow), max(p.y for p in glow)
+    x = right + gap
+    if x + width > rect.x + rect.width - gap:
+      x = left - gap - width
+    x = max(rect.x + gap, min(x, rect.x + rect.width - gap - width))
+    y = max(rect.y + gap, min((top + bottom - height) / 2, rect.y + rect.height - gap - height))
+    box = rl.Rectangle(x, y, width, height)
+    rl.draw_rectangle_rounded(box, 0.2, 6, rl.Color(0, 0, 0, 190))
+    rl.draw_text_ex(font, text, rl.Vector2(x + padding, y + padding), font_size, 0, rl.WHITE)
 
   @staticmethod
   def _get_path_length_idx(pos_x_array: np.ndarray, path_height: float) -> int:
@@ -380,13 +408,14 @@ class ModelRenderer(Widget):
     input_pt = np.array([in_x, in_y, in_z])
     pt = self._car_space_transform @ input_pt
 
-    if abs(pt[2]) < 1e-6:
+    if not np.isfinite(pt).all() or pt[2] < 1e-6:
       return None
 
     x, y = pt[0] / pt[2], pt[1] / pt[2]
 
-    clip = self._clip_region
-    if not (clip.x <= x <= clip.x + clip.width and clip.y <= y <= clip.y + clip.height):
+    # Projection is relative to the camera rectangle. Do not turn an offscreen
+    # vehicle into an apparent target at the edge of the image by clamping it.
+    if not (0 <= x <= self._rect.width and 0 <= y <= self._rect.height):
       return None
 
     return (x, y)

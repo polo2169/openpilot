@@ -5,8 +5,22 @@ from openpilot.selfdrive.ui.mici.widgets.button import BigParamControl, BigMulti
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.selfdrive.ui.layouts.settings.common import restart_needed_callback
 from openpilot.selfdrive.ui.ui_state import ui_state
+from openpilot.system.manager.psa_t9_settings import request_eps_cycle_change
 
 PERSONALITY_TO_INT = log.LongitudinalPersonality.schema.enumerants
+
+
+class T9EpsCycleToggle(BigParamControl):
+  def __init__(self):
+    super().__init__("cycle EPS (essai)", "PsaT9EpsCycleTest")
+    self.set_value("redémarre le comma")
+    self.set_enabled(lambda: not ui_state.started and not ui_state.engaged)
+
+  def _handle_mouse_release(self, mouse_pos):
+    # Recheck at the actual click, before either the setting or reboot is
+    # written. Persist the toggle first; every process reloads it at boot.
+    if request_eps_cycle_change(self.params, not self._checked, started=ui_state.started, engaged=ui_state.engaged):
+      self.set_checked(not self._checked)
 
 
 class TogglesLayoutMici(NavScroller):
@@ -22,7 +36,10 @@ class TogglesLayoutMici(NavScroller):
     record_mic = BigParamControl("record & upload mic audio", "RecordAudio", toggle_callback=restart_needed_callback)
     enable_openpilot = BigParamControl("enable openpilot", "OpenpilotEnabledToggle", toggle_callback=restart_needed_callback)
 
+    eps_cycle = T9EpsCycleToggle()
+
     self._scroller.add_widgets([
+      eps_cycle,
       self._personality_toggle,
       self._experimental_btn,
       is_metric_toggle,
@@ -35,6 +52,7 @@ class TogglesLayoutMici(NavScroller):
 
     # Toggle lists
     self._refresh_toggles = (
+      ("PsaT9EpsCycleTest", eps_cycle),
       ("ExperimentalMode", self._experimental_btn),
       ("IsMetric", is_metric_toggle),
       ("IsLdwEnabled", ldw_toggle),

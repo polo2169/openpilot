@@ -1,0 +1,9 @@
+monotonic_s,event,vehicle_speed_kph,driver_torque_raw,left_blinker,right_blinker,left_lane_prob,right_lane_prob,lateral_state,requested_torque_raw,rvv_setpoint_kph,note
+0.00,lateral_active,90.0,2,0,0,0.94,0.96,active,6,110,synthetic example
+0.10,left_blinker_on,90.0,2,1,0,0.94,0.96,paused,0,110,latéral en pause; RVV conservé
+0.60,left_blinker_off,90.0,2,0,0,0.95,0.96,paused,0,110,début des 0.5 s de lignes stables
+1.10,lanes_stable,90.0,2,0,0,0.95,0.96,resuming,0,110,reprise à couple nul
+1.15,torque_ramp,90.0,2,0,0,0.95,0.96,active,1,110,rampe progressive
+2.00,driver_override,90.0,16,0,0,0.95,0.96,paused,0,110,seuil strictement supérieur à 15
+2.40,driver_back_in_range,90.0,15,0,0,0.95,0.96,paused,0,110,15 reste inclus; validation des lignes
+2.90,lanes_stable,90.0,15,0,0,0.95,0.96,resuming,0,110,reprise après 0.5 s

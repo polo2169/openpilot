@@ -1,5 +1,9 @@
 # Peugeot 308 T9 2018: comma mici dashcam branch
 
+> This document describes the receive-only ancestor of the branch. The current
+> experimental active-control version is documented in
+> [PEUGEOT_308_T9.md](PEUGEOT_308_T9.md).
+
 This device branch is based on the exact installed openpilot v0.11.1 release,
 `70e157462304e5ce7d03ffbec6cb7f45bf347bb7` (`release-mici`, AGNOS 18.4).
 It integrates the receive-only T9 port from `polo2169/opendbc` commit

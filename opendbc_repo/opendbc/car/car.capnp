@@ -190,6 +190,8 @@ struct CarState {
   steeringTorque @8 :Float32;      # Native CAN units, only needed on cars where it's used for control
   steeringTorqueEps @27 :Float32;  # Native CAN units, only needed on cars where it's used for control
   steeringPressed @9 :Bool;        # is the user overring the steering wheel?
+  psaLateralPaused @61 :Bool;
+  psaEpsCycling @62 :Bool;  # Explicit test handshake; zero torque until EPS ACK
   steeringDisengage @58 :Bool;     # more force than steeringPressed, disengages for applicable brands
   steerFaultTemporary @35 :Bool;
   steerFaultPermanent @36 :Bool;
@@ -342,6 +344,9 @@ struct RadarData @0x888ad6581cf0aacb {
 struct CarControl {
   # must be true for any actuator commands to work
   enabled @0 :Bool;
+  psaLateralPause @18 :Bool;  # T9: keep an existing session at zero torque
+  psaLateralResume @19 :Bool;
+  psaEpsCycleReady @20 :Bool; # Fresh straight-road/model gate for a planned EPS cycle
   latActive @11: Bool;
   longActive @12: Bool;
 

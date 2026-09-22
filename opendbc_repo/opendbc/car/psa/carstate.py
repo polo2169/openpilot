@@ -3,6 +3,7 @@ from opendbc.can.parser import CANParser
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.psa.values import CAR, DBC, CarControllerParams
 from opendbc.car.interfaces import CarStateBase
+from opendbc.car.psa.lka import fresh
 
 GearShifter = structs.CarState.GearShifter
 TransmissionType = structs.CarParams.TransmissionType
@@ -77,7 +78,16 @@ class CarState(CarStateBase):
     )
     ret.standstill = ret.vEgoRaw < 0.1
     ret.yawRate = cp.vl['T9_BRAKE_DYNAMICS_3CD']['YawRateDegS'] * CV.DEG_TO_RAD
-    ret.gasPressed = cp.vl['T9_ENGINE_DYNAMICS_208']['AcceleratorPositionPct'] > 0
+    now = getattr(self, 't9_shadow_now_nanos', 0)
+    pedal_time = cp.ts_nanos['T9_ACCELERATOR_PEDAL_228']['AcceleratorPedalPct']
+    pedal_pct = cp.vl['T9_ACCELERATOR_PEDAL_228']['AcceleratorPedalPct']
+    self.t9_pedal_valid = fresh(now, pedal_time) and 0 <= pedal_pct <= 100
+    self.t9_pedal_pct = pedal_pct if self.t9_pedal_valid else None
+    self.t9_engine_accelerator_demand_pct = cp.vl['T9_ENGINE_DYNAMICS_208']['AcceleratorPositionPct']
+    # 0x208 is a calculated demand, also nonzero during stock RVV regulation.
+    # OBD's independent P334 in 0x228 represents the driver's pedal.
+    # An absent, stale or reserved value must never imply pedal release.
+    ret.gasPressed = not self.t9_pedal_valid or pedal_pct > 0
     ret.brakePressed = bool(cp.vl['T9_BODY_STATUS_412']['BrakePedalActive'])
     # The 0x412 parking-brake bit never became active in the local corpus.
     ret.parkingBrake = cp.vl['T9_EASY_MOVE_3AD']['ParkingBrakeState'] == 1
@@ -99,9 +109,21 @@ class CarState(CarStateBase):
     ret.cruiseState.nonAdaptive = True
 
     reverse = bool(cp.vl['T9_BODY_STATUS_412']['ReverseGearActive'])
-    # The candidate gear field in 0x348 stays zero even in the moving capture.
-    # Only the independent reverse indication is used until gear is validated.
-    ret.gearShifter = GearShifter.reverse if reverse else GearShifter.unknown
+    # Match the OBD tool's high nibble, validated on both complete comma routes.
+    # Target gear is kept separate; neither the target nor wheel speed is a
+    # replacement for a fresh engaged-ratio observation.
+    gear_time = cp.ts_nanos['T9_ENGINE_GEAR_348']['CurrentGear']
+    target_time = cp.ts_nanos['T9_GEARBOX_TARGET_349']['TargetGear']
+    self.t9_current_gear_raw = int(cp.vl['T9_ENGINE_GEAR_348']['CurrentGear']) if fresh(now, gear_time) else None
+    self.t9_target_gear_raw = int(cp.vl['T9_GEARBOX_TARGET_349']['TargetGear']) if fresh(now, target_time) else None
+    self.t9_target_gear = self.t9_target_gear_raw if self.t9_target_gear_raw in (0, 1, 2, 3, 4, 5, 6, 9) else None
+    if reverse or self.t9_current_gear_raw == 9:
+      ret.gearShifter = GearShifter.reverse
+    elif self.t9_current_gear_raw in (1, 2, 3, 4, 5, 6):
+      ret.gearShifter = GearShifter.drive
+    else:
+      # 0 means no forward ratio; it does not distinguish P from N on its own.
+      ret.gearShifter = GearShifter.unknown
 
     blinker = cp.vl['T9_DRIVER_CRUISE_COMMAND_452']['TurnSignalStatus']
     ret.leftBlinker = blinker in (2, 3)
@@ -110,6 +132,28 @@ class CarState(CarStateBase):
       'DriverDoorOpen', 'PassengerDoorOpen', 'RearLeftDoorOpen', 'RearRightDoorOpen',
     ))
     ret.seatbeltUnlatched = cp.vl['T9_RESTRAINTS_572']['DriverSeatbeltState'] != 2
+    # Use timestamps accepted by the parser, including checksum/counter checks.
+    # Do not infer a forward gear from motion or the requested ratio in 0x349.
+    timestamps = [cp.ts_nanos[message][signal] for message, signal in (
+      ('T9_ENGINE_DYNAMICS_208', 'AcceleratorPositionPct'),
+      ('T9_ACCELERATOR_PEDAL_228', 'AcceleratorPedalPct'),
+      ('T9_STEERING_TORQUE_2F5', 'DriverTorqueRaw'),
+      ('T9_STEERING_DYNAMICS_305', 'SteeringAngleDeg'),
+      ('T9_BRAKE_DYNAMICS_3CD', 'YawRateDegS'),
+      ('T9_WHEEL_SPEEDS_30D', 'WheelSpeedFrontLeftKph'),
+      ('T9_ENGINE_GEAR_348', 'CurrentGear'),
+      ('T9_BODY_STATUS_412', 'BrakePedalActive'),
+      ('T9_EASY_MOVE_3AD', 'ParkingBrakeState'),
+      ('T9_RESTRAINTS_572', 'DriverSeatbeltState'),
+      ('T9_DRIVER_CRUISE_COMMAND_452', 'TurnSignalStatus'),
+    )]
+    rvv_times = [cp.ts_nanos[message][signal] for message, signal in (
+      ('T9_ENGINE_DYNAMICS_208', 'CruiseStateCandidate'),
+      ('T9_CRUISE_SETPOINT_50E', 'CruiseSetpointKph'),
+    )]
+    self.t9_shadow_safety_rx_nanos = min(timestamps)
+    self.t9_shadow_rvv_rx_nanos = min(rvv_times)
+    self.t9_shadow_latest_rx_nanos = max(timestamps + rvv_times)
     return ret
 
   @staticmethod
@@ -128,6 +172,13 @@ class CarState(CarStateBase):
         ('T9_DRIVER_CRUISE_COMMAND_452', 20),
         ('T9_CRUISE_SETPOINT_50E', 10),
         ('T9_RESTRAINTS_572', 10),
+        # Keep dashcam logging usable without gearbox data. Shadow actuation
+        # eligibility enforces the actual 0x348 RX timestamp independently.
+        ('T9_ENGINE_GEAR_348', float('nan')),
+        ('T9_GEARBOX_TARGET_349', float('nan')),
+        # Old reduced fixtures omit this stream. Missing pedal data inhibits
+        # control through gasPressed + freshness, while dashcam may still log.
+        ('T9_ACCELERATOR_PEDAL_228', float('nan')),
       ]
       return {Bus.main: CANParser(DBC[CP.carFingerprint][Bus.pt], messages, 0)}
 

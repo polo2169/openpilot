@@ -29,6 +29,10 @@ Quick start: `bash <(curl -fsSL openpilot.comma.ai)`
 
 </div>
 
+> **Peugeot 308 T9 branch:** this branch contains an experimental RVV and
+> lateral-control port for one recorded 2018 vehicle. Read
+> [PEUGEOT_308_T9.md](PEUGEOT_308_T9.md) before using or adapting it.
+
 <table>
   <tr>
     <td><a href="https://youtu.be/NmBfgOanCyk" title="Video By Greer Viau"><img src="https://github.com/commaai/openpilot/assets/8762862/2f7112ae-f748-4f39-b617-fabd689c3772"></a></td>

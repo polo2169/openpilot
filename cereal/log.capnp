@@ -133,6 +133,13 @@ struct OnroadEvent @0xc4fa6047f024e718 {
     excessiveActuation @96;
     audioFeedback @97;
 
+    psaRvvUnavailable @100;
+    psaLateralAxisUnavailable @101;
+    psaRvvAxisUnavailable @102;
+    psaAxesUnavailable @103;
+    psaLateralPaused @104;
+    psaEpsCycling @105;
+
     soundsUnavailableDEPRECATED @47;
   }
 }

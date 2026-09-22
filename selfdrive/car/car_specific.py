@@ -1,8 +1,14 @@
+import time
+
 from cereal import car, log
+from opendbc.car.psa import rvv_wire
 from opendbc.car import DT_CTRL, structs
 from opendbc.car.car_helpers import interfaces
 from opendbc.car.interfaces import MAX_CTRL_SPEED
 from opendbc.car.toyota.values import ToyotaFlags
+from opendbc.car.psa.values import CAR as PSACar
+from opendbc.car.psa.lateral_test import enabled as t9_lateral_enabled
+from opendbc.car.psa.lka import MAX_SPEED_KPH
 
 from openpilot.selfdrive.selfdrived.events import Events
 
@@ -15,6 +21,18 @@ NetworkLocation = structs.CarParams.NetworkLocation
 class CarSpecificEvents:
   def __init__(self, CP: structs.CarParams):
     self.CP = CP
+    self.t9_rvv_only = rvv_wire.only(CP)
+    self.t9_split_axes = rvv_wire.split(CP)
+    self.t9_split_session_stopped = False
+    self.t9_split_admission_ns = 0
+    self.rvv_sm = None
+    if rvv_wire.enabled(CP):
+      import cereal.messaging as messaging
+      self.rvv_sm = messaging.SubMaster([rvv_wire.SERVICE])
+    # This explicit lateral-only profile intentionally retains conventional
+    # Peugeot cruise. Preserve the truthful nonAdaptive signal in CarState.
+    self.t9_stock_cruise_lateral = (CP.carFingerprint == PSACar.PSA_PEUGEOT_308_T9
+                                   and CP.pcmCruise and t9_lateral_enabled(CP))
 
     self.steering_unpressed = 0
     self.low_speed_alert = False
@@ -26,6 +44,57 @@ class CarSpecificEvents:
       return Events()
 
     events = self.create_common_events(CS, CS_prev)
+
+    if self.t9_stock_cruise_lateral or self.t9_rvv_only:
+      if CS.vEgoRaw < self.CP.minEnableSpeed:
+        events.add(EventName.belowEngageSpeed)
+        events.add(EventName.pcmDisable)
+      # Match the T9 controller at the exact boundary after float32 transport.
+      if round(CS.vEgoRaw * 3.6, 4) > MAX_SPEED_KPH:
+        events.add(EventName.speedTooHigh)
+        events.add(EventName.pcmDisable)
+      # Those speed alerts are NO_ENTRY/WARNING only in native openpilot.
+      # End comma assistance immediately alongside the Panda speed gate, using
+      # the normal disengagement chime. The physical RVV state stays truthful;
+      # this event does not send a cruise cancellation command.
+
+    if self.rvv_sm is not None:
+      self.rvv_sm.update(0)
+      payload = bytes(self.rvv_sm[rvv_wire.SERVICE])
+      now = time.monotonic_ns()
+      if self.t9_split_axes:
+        common_fault, rvv_stopped, rvv_requested = rvv_wire.split_status(payload, now)
+        rvv_available = rvv_requested or rvv_wire.split_waiting(payload, now)
+        event_ns = self.rvv_sm.logMonoTime[rvv_wire.SERVICE]
+        common_fault |= not 0 < event_ns <= now or now - event_ns > 100_000_000
+        lat_stopped = (CS.steeringDisengage or (CS.steeringPressed and not CS.psaLateralPaused)
+                       or CS.steerFaultTemporary or CS.steerFaultPermanent)
+        if not CS.cruiseState.enabled:
+          self.t9_split_session_stopped = False
+          self.t9_split_admission_ns = 0
+        else:
+          common_fault |= CS.blockPcmEnable or not self.rvv_sm.valid[rvv_wire.SERVICE]
+          if not CS_prev.cruiseState.enabled and not CS.blockPcmEnable and not self.t9_split_session_stopped:
+            # A validated physical OFF/ON edge can admit RVV alone while EPS
+            # is unavailable. The previous disabled wire cannot yet contain
+            # an engaged RVV heartbeat: allow its first publication a bounded
+            # interval, never a new admission on EPS/target recovery.
+            self.t9_split_admission_ns = now
+          if not lat_stopped or rvv_available:
+            self.t9_split_admission_ns = 0
+          admitting = (0 < self.t9_split_admission_ns <= now
+                       and now-self.t9_split_admission_ns <= 250_000_000)
+          both_stopped = lat_stopped and not rvv_available
+          if common_fault or (both_stopped and (rvv_stopped or not admitting)):
+            self.t9_split_session_stopped = True
+            self.t9_split_admission_ns = 0
+          if self.t9_split_session_stopped:
+            events.add(EventName.psaAxesUnavailable)
+          if rvv_stopped:
+            events.add(EventName.psaRvvAxisUnavailable)
+      elif CS.cruiseState.enabled and (CS.blockPcmEnable or not self.rvv_sm.valid[rvv_wire.SERVICE]
+          or rvv_wire.blocked(payload, now)):
+        events.add(EventName.psaRvvUnavailable)
 
     if self.CP.brand == 'chrysler':
       # Low speed steer alert hysteresis logic
@@ -124,7 +193,7 @@ class CarSpecificEvents:
       events.add(EventName.stockLkas)
     if CS.vEgo > MAX_CTRL_SPEED:
       events.add(EventName.speedTooHigh)
-    if CS.cruiseState.nonAdaptive:
+    if CS.cruiseState.nonAdaptive and not (self.t9_stock_cruise_lateral or self.t9_rvv_only):
       events.add(EventName.wrongCruiseMode)
     if CS.brakeHoldActive and self.CP.openpilotLongitudinalControl:
       events.add(EventName.brakeHold)
@@ -132,9 +201,12 @@ class CarSpecificEvents:
       events.add(EventName.parkBrake)
     if CS.accFaulted:
       events.add(EventName.accFaulted)
-    if CS.steeringPressed:
+    if CS.steeringPressed and not (self.t9_rvv_only or self.t9_split_axes):
       events.add(EventName.steerOverride)
-    if CS.steeringDisengage and not CS_prev.steeringDisengage:
+    if CS.steeringDisengage and not (self.t9_rvv_only or self.t9_split_axes) and (not CS_prev.steeringDisengage or self.t9_stock_cruise_lateral):
+      # T9's physical-override cut stays latched until RVV off. Keep NO_ENTRY
+      # asserted while the cut remains, and align selfdrived immediately with
+      # the host/Panda release instead of reaching controlsMismatch later.
       events.add(EventName.steerDisengage)
     if CS.brakePressed and CS.standstill:
       events.add(EventName.preEnableStandstill)
@@ -158,7 +230,25 @@ class CarSpecificEvents:
 
     # Handle permanent and temporary steering faults
     self.steering_unpressed = 0 if CS.steeringPressed else self.steering_unpressed + 1
-    if CS.steerFaultTemporary:
+    if self.t9_split_axes:
+      if CS.cruiseState.enabled and (CS.steeringDisengage or (CS.steeringPressed and not CS.psaLateralPaused)
+                                    or CS.steerFaultTemporary or CS.steerFaultPermanent):
+        events.add(EventName.psaLateralAxisUnavailable)
+      elif CS.cruiseState.enabled and CS.psaEpsCycling:
+        events.add(EventName.psaEpsCycling)
+      elif CS.cruiseState.enabled and CS.psaLateralPaused:
+        events.add(EventName.psaLateralPaused)
+    elif self.t9_rvv_only:
+      pass
+    elif CS.steerFaultTemporary and self.t9_stock_cruise_lateral:
+      # The T9 host and Panda have already removed lateral authority. The
+      # normal three-second soft disable would falsely remain active and can
+      # end in controlsMismatch. Keep an immediate takeover alert and NO_ENTRY,
+      # including during driver input; never infer a permanent EPS fault.
+      self.no_steer_warning = False
+      self.silent_steer_warning = False
+      events.add(EventName.steerUnavailable)
+    elif CS.steerFaultTemporary:
       if CS.steeringPressed and (not CS_prev.steerFaultTemporary or self.no_steer_warning):
         self.no_steer_warning = True
       else:
@@ -173,7 +263,7 @@ class CarSpecificEvents:
     else:
       self.no_steer_warning = False
       self.silent_steer_warning = False
-    if CS.steerFaultPermanent:
+    if CS.steerFaultPermanent and not (self.t9_rvv_only or self.t9_split_axes) and EventName.steerUnavailable not in events.names:
       events.add(EventName.steerUnavailable)
 
     # we engage when pcm is active (rising edge)

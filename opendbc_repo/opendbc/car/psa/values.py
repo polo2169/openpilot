@@ -20,7 +20,7 @@ class CarControllerParams:
   STEER_DRIVER_ALLOWANCE = 5  # Driver intervention threshold, 0.5 Nm
 
   # T9 driver effort is only calibrated in raw units.
-  T9_STEER_DRIVER_THRESHOLD_RAW = 5
+  T9_STEER_DRIVER_THRESHOLD_RAW = 15
 
   def __init__(self, CP):
     if CP.carFingerprint == CAR.PSA_PEUGEOT_308_T9:

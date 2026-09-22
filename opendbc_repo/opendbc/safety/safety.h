@@ -27,6 +27,9 @@
 #include "opendbc/safety/modes/elm327.h"
 #include "opendbc/safety/modes/body.h"
 #include "opendbc/safety/modes/psa.h"
+#include "opendbc/safety/modes/psa_t9.h"
+#include "opendbc/safety/modes/psa_t9_rvv.h"
+#include "opendbc/safety/modes/psa_t9_combined.h"
 #include "opendbc/safety/modes/hyundai_canfd.h"
 
 uint32_t GET_BYTES(const CANPacket_t *msg, int start, int len) {
@@ -185,6 +188,7 @@ static bool rx_msg_safety_check(const CANPacket_t *msg,
 }
 
 bool safety_rx_hook(const CANPacket_t *msg) {
+  t9_split_sync_common_stop();
   bool controls_allowed_prev = controls_allowed;
 
   bool valid = rx_msg_safety_check(msg, &current_safety_config, current_hooks);
@@ -206,6 +210,9 @@ bool safety_rx_hook(const CANPacket_t *msg) {
       stock_ecu_check((m->addr == addr) && (m->bus == msg->bus));
     }
   }
+
+  if (t9_split_profile() && (!valid || relay_malfunction)) { t9_split_common_stop(); }
+  t9_split_sync_common_stop();
 
   // reset mismatches on rising edge of controls_allowed to avoid rare race condition
   if (controls_allowed && !controls_allowed_prev) {
@@ -230,6 +237,7 @@ static bool tx_msg_safety_check(const CANPacket_t *msg, const CanMsg msg_list[],
 }
 
 bool safety_tx_hook(CANPacket_t *msg) {
+  t9_split_sync_common_stop();
   bool whitelisted = tx_msg_safety_check(msg, current_safety_config.tx_msgs, current_safety_config.tx_msgs_len);
   if ((current_safety_mode == SAFETY_ALLOUTPUT) || (current_safety_mode == SAFETY_ELM327)) {
     whitelisted = true;
@@ -337,6 +345,7 @@ void safety_tick(const safety_config *cfg) {
   }
 
   safety_rx_checks_invalid = rx_checks_invalid;
+  t9_split_sync_common_stop();
 }
 
 static void relay_malfunction_set(void) {
@@ -360,7 +369,8 @@ static void generic_rx_checks(void) {
 
   // exit controls on rising edge of steering override/disengage
   if (steering_disengage && !steering_disengage_prev) {
-    controls_allowed = false;
+    if (t9_split_profile()) { t9_split_lateral_stop(); }
+    else { controls_allowed = false; }
   }
   steering_disengage_prev = steering_disengage;
 }
@@ -410,7 +420,11 @@ int set_safety_hooks(uint16_t mode, uint16_t param) {
     {SAFETY_HYUNDAI_CANFD, &hyundai_canfd_hooks},
 #ifdef ALLOW_DEBUG
     {SAFETY_CHRYSLER_CUSW, &chrysler_cusw_hooks},
-    {SAFETY_PSA, &psa_hooks},
+    {SAFETY_PSA, ((param == PSA_T9_COMBINED_PARAM) || (param == PSA_T9_COMBINED_PROBE_PARAM) ||
+                 (param == PSA_T9_SPLIT_PARAM) || (param == PSA_T9_SPLIT_PROBE_PARAM) ||
+                 (param == PSA_T9_CYCLE_PARAM) || (param == PSA_T9_CYCLE_PROBE_PARAM)) ? &psa_t9_combined_hooks :
+                ((param == PSA_T9_RVV_PARAM) || (param == PSA_T9_RVV_PROBE_PARAM)) ? &psa_t9_rvv_hooks :
+                ((param == PSA_T9_LATERAL_PARAM) || (param == PSA_T9_PROBE_PARAM)) ? &psa_t9_hooks : &psa_hooks},
     {SAFETY_SUBARU_PREGLOBAL, &subaru_preglobal_hooks},
     {SAFETY_VOLKSWAGEN_MLB, &volkswagen_mlb_hooks},
     {SAFETY_VOLKSWAGEN_PQ, &volkswagen_pq_hooks},
