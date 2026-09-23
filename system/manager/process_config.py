@@ -112,6 +112,9 @@ procs = [
   PythonProcess("tombstoned", "system.tombstoned", always_run, enabled=not PC),
   PythonProcess("updated", "system.updated.updated", only_offroad, enabled=not PC),
   PythonProcess("uploader", "system.loggerd.uploader", always_run),
+  # Optional private uploader. It is inert until /data/comma_home_upload.json
+  # exists and only transfers completed route segments over Wi-Fi while offroad.
+  PythonProcess("home_uploader", "system.home_uploader", always_run, restart_if_crash=True),
   PythonProcess("statsd", "system.statsd", always_run),
   PythonProcess("feedbackd", "selfdrive.ui.feedback.feedbackd", only_onroad),
 
