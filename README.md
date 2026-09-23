@@ -29,6 +29,10 @@ Quick start: `bash <(curl -fsSL openpilot.comma.ai)`
 
 </div>
 
+> **Peugeot 5008 diagnostic branch:** this prebuilt comma four image records
+> CAN passively and uses the validated PSA T15 ignition signal. It cannot send
+> vehicle commands. See [the installation and capture guide](docs/PEUGEOT_5008_T15_LOGGER.md).
+
 <table>
   <tr>
     <td><a href="https://youtu.be/NmBfgOanCyk" title="Video By Greer Viau"><img src="https://github.com/commaai/openpilot/assets/8762862/2f7112ae-f748-4f39-b617-fabd689c3772"></a></td>
