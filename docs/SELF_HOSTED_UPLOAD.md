@@ -7,11 +7,11 @@ Créer `/data/comma_home_upload.json` sur le comma :
 
 ```json
 {
-  "server_url": "http://192.168.68.60:8060",
+  "server_url": "https://obd.rudder-aero.com",
   "token": "LE_MEME_JETON_QUE_SUR_LE_SERVEUR",
   "chunk_bytes": 4194304,
   "min_age_seconds": 90,
-  "verify_tls": false,
+  "verify_tls": true,
   "upload_video": true,
   "upload_logs": true
 }
@@ -42,6 +42,6 @@ l'historique du shell :
 ```bash
 scripts/configure_comma_home_upload.sh \
   ADRESSE_DU_COMMA \
-  http://192.168.68.60:8060 \
+  https://obd.rudder-aero.com \
   JETON_DU_SERVEUR
 ```
