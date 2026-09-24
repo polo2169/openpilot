@@ -13,7 +13,8 @@ Créer `/data/comma_home_upload.json` sur le comma :
   "min_age_seconds": 90,
   "verify_tls": true,
   "upload_video": true,
-  "upload_logs": true
+  "upload_logs": true,
+  "video_files": ["fcamera.hevc"]
 }
 ```
 
@@ -29,6 +30,8 @@ compte (`chmod 600`). Un redémarrage de l'application suffit ensuite.
 - `rlog` et `qlog` sont compressés en Zstandard avant l'envoi ;
 - les vidéos caméra, `rlog` et `qlog` sont envoyés par blocs avec reprise à
   l'octet confirmé par le serveur ;
+- `video_files` permet de limiter les flux vidéo ; `fcamera.hevc` conserve la
+  caméra avant principale sans envoyer les caméras habitacle et grand-angle ;
 - les originaux restent sur le comma. Le processus ne les efface jamais ;
 - l'état local se trouve dans `/data/comma-home-uploader/state.json`.
 
