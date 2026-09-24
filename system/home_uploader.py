@@ -32,6 +32,7 @@ UPLOADABLE_FILES = {
   "rlog", "rlog.zst", "qlog", "qlog.zst", "qcamera.ts",
   "fcamera.hevc", "dcamera.hevc", "ecamera.hevc",
 }
+VIDEO_FILES = frozenset({"qcamera.ts", "fcamera.hevc", "dcamera.hevc", "ecamera.hevc"})
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class HomeUploadConfig:
   verify_tls: bool = True
   upload_video: bool = True
   upload_logs: bool = True
+  video_files: frozenset[str] = VIDEO_FILES
 
   @classmethod
   def load(cls, path: Path = DEFAULT_CONFIG_PATH) -> HomeUploadConfig | None:
@@ -54,6 +56,15 @@ class HomeUploadConfig:
       if not server_url.startswith(("http://", "https://")) or not token:
         raise ValueError("server_url or token missing")
       chunk_bytes = max(256 * 1024, min(int(raw.get("chunk_bytes", cls.chunk_bytes)), 8 * 1024 * 1024))
+      configured_video_files = raw.get("video_files")
+      if configured_video_files is None:
+        video_files = VIDEO_FILES
+      elif isinstance(configured_video_files, list) and all(isinstance(name, str) for name in configured_video_files):
+        video_files = frozenset(configured_video_files)
+        if not video_files <= VIDEO_FILES:
+          raise ValueError("video_files contains an unsupported filename")
+      else:
+        raise ValueError("video_files must be a list")
       return cls(
         server_url=server_url,
         token=token,
@@ -63,6 +74,7 @@ class HomeUploadConfig:
         verify_tls=bool(raw.get("verify_tls", True)),
         upload_video=bool(raw.get("upload_video", True)),
         upload_logs=bool(raw.get("upload_logs", True)),
+        video_files=video_files,
       )
     except FileNotFoundError:
       return None
@@ -103,8 +115,9 @@ class UploadState:
 def _eligible(path: Path, config: HomeUploadConfig, now: float) -> bool:
   if path.name not in UPLOADABLE_FILES or not path.is_file():
     return False
-  if path.name.endswith((".hevc", ".ts")) and not config.upload_video:
-    return False
+  if path.name in VIDEO_FILES:
+    if not config.upload_video or path.name not in config.video_files:
+      return False
   if path.name.startswith(("rlog", "qlog")) and not config.upload_logs:
     return False
   try:
