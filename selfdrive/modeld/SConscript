@@ -53,6 +53,29 @@ tg_devices = { # which device to put jit inputs to at runtime
   },
 }
 
+# Release branches ship the already compiled tinygrad model assets and omit the
+# large ONNX sources.  Keep those assets out of the SCons graph: trying to
+# recreate them makes a fresh comma install fail while parsing this file, before
+# any of the other targets can be built.
+precompiled_model_assets = not os.path.exists(File("#.gitattributes").abspath)
+
+if precompiled_model_assets:
+  required_chunked_models = [
+    File("models/driving_tinygrad.pkl").abspath,
+    File("models/dmonitoring_model_tinygrad.pkl").abspath,
+  ]
+  required_model_files = [
+    File("models/dmonitoring_model_metadata.pkl").abspath,
+    File("models/dm_warp_1344x760_tinygrad.pkl").abspath,
+    File("models/dm_warp_1928x1208_tinygrad.pkl").abspath,
+    File("models/tg_input_devices.json").abspath,
+  ]
+  for model_path in required_chunked_models:
+    get_existing_chunks(model_path)
+  for model_path in required_model_files:
+    if not os.path.isfile(model_path):
+      raise FileNotFoundError(model_path)
+
 USBGPU = usbgpu_present() # or release # TODO always build big model on release
 if USBGPU:
   tg_devices['selfdrive.modeld.modeld']['usbgpu'] = {'WARP_DEV': tg_backend, 'QUEUE_DEV': 'AMD'}
@@ -84,44 +107,47 @@ compile_modeld_script = [
 model_w, model_h = MEDMODEL_INPUT_SIZE
 frame_skip = ModelConstants.MODEL_RUN_FREQ // ModelConstants.MODEL_CONTEXT_FREQ
 
-for usbgpu in [False, True] if USBGPU else [False]:
-  target_pkl_path = File(modeld_pkl_path(usbgpu)).abspath
-  file_prefix, cmd_flags = ('big_', usbgpu_tg_flags) if usbgpu else ('', tg_flags)
-  driving_onnx_deps = [p for m in [f'{file_prefix}driving_vision', f'{file_prefix}driving_policy']
-                       for p in get_existing_chunks(File(f"models/{m}.onnx").abspath)]
-  camera_res_args = ' '.join(f'{cw}x{ch}' for cw, ch in CAMERA_CONFIGS)
-  cmd = (f'{cmd_flags} {mac_brew_string} python3 {modeld_dir}/compile_modeld.py '
-        f'--model-size {model_w}x{model_h} '
-        f'--camera-resolutions {camera_res_args} '
-        f'--vision-onnx {File(f"models/{file_prefix}driving_vision.onnx").abspath} '
-        f'--policy-onnx {File(f"models/{file_prefix}driving_policy.onnx").abspath} '
-        f'--output {target_pkl_path} --frame-skip {frame_skip}')
-  onnx_sizes_sum = sum(os.path.getsize(f) for f in driving_onnx_deps)
-  chunk_targets = get_chunk_targets(target_pkl_path, estimate_pickle_max_size(onnx_sizes_sum))
-  def do_chunk(target, source, env, pkl=target_pkl_path, chunks=chunk_targets):
-    chunk_file(pkl, chunks)
-  node = lenv.Command(
-    chunk_targets,
-    tinygrad_files + compile_modeld_script + driving_onnx_deps + [Value(chunk_targets), chunker_file],
-    [cmd, do_chunk],
-  )
-  if usbgpu:
-    lenv.SideEffect(usbgpu_lock, node)
+if not precompiled_model_assets:
+  for usbgpu in [False, True] if USBGPU else [False]:
+    target_pkl_path = File(modeld_pkl_path(usbgpu)).abspath
+    file_prefix, cmd_flags = ('big_', usbgpu_tg_flags) if usbgpu else ('', tg_flags)
+    driving_onnx_deps = [p for m in [f'{file_prefix}driving_vision', f'{file_prefix}driving_policy']
+                         for p in get_existing_chunks(File(f"models/{m}.onnx").abspath)]
+    camera_res_args = ' '.join(f'{cw}x{ch}' for cw, ch in CAMERA_CONFIGS)
+    cmd = (f'{cmd_flags} {mac_brew_string} python3 {modeld_dir}/compile_modeld.py '
+          f'--model-size {model_w}x{model_h} '
+          f'--camera-resolutions {camera_res_args} '
+          f'--vision-onnx {File(f"models/{file_prefix}driving_vision.onnx").abspath} '
+          f'--policy-onnx {File(f"models/{file_prefix}driving_policy.onnx").abspath} '
+          f'--output {target_pkl_path} --frame-skip {frame_skip}')
+    onnx_sizes_sum = sum(os.path.getsize(f) for f in driving_onnx_deps)
+    chunk_targets = get_chunk_targets(target_pkl_path, estimate_pickle_max_size(onnx_sizes_sum))
+    def do_chunk(target, source, env, pkl=target_pkl_path, chunks=chunk_targets):
+      chunk_file(pkl, chunks)
+    node = lenv.Command(
+      chunk_targets,
+      tinygrad_files + compile_modeld_script + driving_onnx_deps + [Value(chunk_targets), chunker_file],
+      [cmd, do_chunk],
+    )
+    if usbgpu:
+      lenv.SideEffect(usbgpu_lock, node)
 
 # get model metadata
-fn = File(f"models/dmonitoring_model").abspath
-script_files = [File(Dir("#selfdrive/modeld").File("get_model_metadata.py").abspath)]
-cmd = f'{tg_flags} {mac_brew_string} python3 {Dir("#selfdrive/modeld").abspath}/get_model_metadata.py {fn}.onnx'
-lenv.Command(fn + "_metadata.pkl", [fn + ".onnx"] + tinygrad_files + script_files + [tg_devices_node], cmd)
+if not precompiled_model_assets:
+  fn = File(f"models/dmonitoring_model").abspath
+  script_files = [File(Dir("#selfdrive/modeld").File("get_model_metadata.py").abspath)]
+  cmd = f'{tg_flags} {mac_brew_string} python3 {Dir("#selfdrive/modeld").abspath}/get_model_metadata.py {fn}.onnx'
+  lenv.Command(fn + "_metadata.pkl", [fn + ".onnx"] + tinygrad_files + script_files + [tg_devices_node], cmd)
 
 dm_w, dm_h = DM_INPUT_SIZE
 compile_dm_warp_script = [File(f"{modeld_dir}/compile_dm_warp.py")]
-for cam_w, cam_h in CAMERA_CONFIGS:
-  dm_pkl_path = File(f"models/dm_warp_{cam_w}x{cam_h}_tinygrad.pkl").abspath
-  cmd = (f'{tg_flags} {mac_brew_string} python3 {modeld_dir}/compile_dm_warp.py '
-         f'--camera-resolution {cam_w}x{cam_h} --warp-to {dm_w}x{dm_h} '
-         f'--output {dm_pkl_path}')
-  lenv.Command(dm_pkl_path, tinygrad_files + compile_dm_warp_script + compile_modeld_script + [tg_devices_node], cmd)
+if not precompiled_model_assets:
+  for cam_w, cam_h in CAMERA_CONFIGS:
+    dm_pkl_path = File(f"models/dm_warp_{cam_w}x{cam_h}_tinygrad.pkl").abspath
+    cmd = (f'{tg_flags} {mac_brew_string} python3 {modeld_dir}/compile_dm_warp.py '
+           f'--camera-resolution {cam_w}x{cam_h} --warp-to {dm_w}x{dm_h} '
+           f'--output {dm_pkl_path}')
+    lenv.Command(dm_pkl_path, tinygrad_files + compile_dm_warp_script + compile_modeld_script + [tg_devices_node], cmd)
 
 def tg_compile(flags, model_name):
   pythonpath_string = 'PYTHONPATH="${PYTHONPATH}:' + env.Dir("#tinygrad_repo").abspath + '"'
@@ -137,4 +163,5 @@ def tg_compile(flags, model_name):
     [f'{pythonpath_string} {flags} python3 {Dir("#tinygrad_repo").abspath}/examples/openpilot/compile3.py {fn}.onnx {pkl}', do_chunk],
   )
 
-tg_compile(tg_flags, 'dmonitoring_model')
+if not precompiled_model_assets:
+  tg_compile(tg_flags, 'dmonitoring_model')
