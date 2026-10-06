@@ -1,0 +1,1090 @@
+{
+  "source_commit": "c40851347a8dc0afaa94f175193bd5724343669a",
+  "openpilot_base": "8624e793c3b79ecf38975fd2d1028b505f271b28",
+  "pinned_dependencies": {
+    "msgq_repo": "e7396e76dadbb49e374d4b664ff6bbb43a39bcb0",
+    "opendbc_repo": "7a2c33083f461114a7be40fa5a164407ce6642a0",
+    "openpilot/sunnypilot/neural_network_data": "56aebacb53bf9515ddb2b3ebf07e4d89fea846e7",
+    "panda": "ea5a83a956d61c7540c1a13a8d76f08c24675d1b",
+    "rednose_repo": "28d4a7f69e80e1c3e0d24ca0733d7daeaeade3d0",
+    "teleoprtc_repo": "1aa8fc433bef1519a95c0700c96258c3be6dfb34",
+    "tinygrad_repo": "e837e367aac9e1a66e689f4f32ce20ca9367df13"
+  },
+  "bundled_lfs_assets": {
+    "docs/assets/favicon.svg": {
+      "sha256": "9e019ed5af500e8820d05934d47e0380728e1b30e01a179f786dc4edb1eccbd7",
+      "bytes": 349
+    },
+    "docs/assets/icon-star-empty.svg": {
+      "sha256": "3142658fa2782d266028dcab491e02ab329a2cadcf9efb1846a5f9631d64cac1",
+      "bytes": 1947
+    },
+    "docs/assets/icon-star-full.svg": {
+      "sha256": "5fdcc85f3d8c9d0c2fb76b98ddd9f118c0e4a12c859a4281a04a0870d5de12c8",
+      "bytes": 1950
+    },
+    "docs/assets/icon-star-half.svg": {
+      "sha256": "cdf5e7ae57626f4cda35973873a4696252babbbe473913fe0aafdd8ba39d7fc3",
+      "bytes": 2508
+    },
+    "docs/assets/icon-youtube.svg": {
+      "sha256": "6cb64f9da10b818c56763a7c48347f6043da20a2a77fb14f6d60d9457c575b6b",
+      "bytes": 1278
+    },
+    "docs/assets/three-back.svg": {
+      "sha256": "8a5245f9458982b608fee67fc689d899ca638a405ff62bf9db5e4978b177ef3e",
+      "bytes": 121394
+    },
+    "openpilot/common/hardware/comma/updater": {
+      "sha256": "3a94ab8395f20d20a9d5a2a2bacca0694f072df8421cf13adca6250d28065bdc",
+      "bytes": 24709205
+    },
+    "openpilot/selfdrive/assets/body/awake.gif": {
+      "sha256": "a4b3f7e9bc5cf058c3daaca23f99c0aafe4324eb4b2e0f8ccb3759b252a8101d",
+      "bytes": 69319
+    },
+    "openpilot/selfdrive/assets/body/sleep.gif": {
+      "sha256": "3481857356714833aa196a89c47de3246dd395a51fbfd9e0dff53058c109ced8",
+      "bytes": 400908
+    },
+    "openpilot/selfdrive/assets/fonts/Audiowide-Regular.ttf": {
+      "sha256": "434a720871336d359378beff5ebff3f9fd654d958693d272c7c6f2e271c7e41c",
+      "bytes": 47676
+    },
+    "openpilot/selfdrive/assets/fonts/Inter-Black.ttf": {
+      "sha256": "05f95cac81f1d97b3fad925cb03e835be1fa46b6fe1e8ef8160b01aca5f8c3a6",
+      "bytes": 294396
+    },
+    "openpilot/selfdrive/assets/fonts/Inter-Bold.ttf": {
+      "sha256": "d597e753e78d8bf9db34c13343146545fb3be5a1c99a175bc381fe3f6f787f31",
+      "bytes": 293448
+    },
+    "openpilot/selfdrive/assets/fonts/Inter-ExtraBold.ttf": {
+      "sha256": "d3f3fb6225a0eacaa537f65bbd8980136c7abaf7eb76e95ceac098d866b1b124",
+      "bytes": 294072
+    },
+    "openpilot/selfdrive/assets/fonts/Inter-ExtraLight.ttf": {
+      "sha256": "a95896c2a2e7d4edfb5ce3e977b404e9e374e4ede57340f5cda4c0b1e5709a67",
+      "bytes": 288400
+    },
+    "openpilot/selfdrive/assets/fonts/Inter-Light.ttf": {
+      "sha256": "d1c68fe19e331437dfcae5cbf37fd30db294ba80959f6bd824c239eee761e9ba",
+      "bytes": 288088
+    },
+    "openpilot/selfdrive/assets/fonts/Inter-Medium.ttf": {
+      "sha256": "5249ae5f8ddfded34c98c6e3cf09e08f178f234e1bfa28a68f98f6f957628418",
+      "bytes": 292140
+    },
+    "openpilot/selfdrive/assets/fonts/Inter-Regular.ttf": {
+      "sha256": "1041a8cf17dab7579acef0cc46b21f6497ec1ae01918ddc3495416efb81a4780",
+      "bytes": 287928
+    },
+    "openpilot/selfdrive/assets/fonts/Inter-SemiBold.ttf": {
+      "sha256": "98542636e6c900d04e987ca7a37e160a407df344be073fb041fd88f2cd90085a",
+      "bytes": 293028
+    },
+    "openpilot/selfdrive/assets/fonts/Inter-Thin.ttf": {
+      "sha256": "83be1891f3a7b9db4579ebdfe550741d0aebf45b2c845b6081d4c161924e7df1",
+      "bytes": 288568
+    },
+    "openpilot/selfdrive/assets/fonts/JetBrainsMono-Medium.ttf": {
+      "sha256": "64708889e701acf7f2f43fd9c3696eb7f2c849ae67693ce581ad8f92433b3b24",
+      "bytes": 204140
+    },
+    "openpilot/selfdrive/assets/fonts/NotoSansCJKjp-Regular.otf": {
+      "sha256": "80135e7ab71496c3b744047ef9100f5d24edaa275d248a3e0488bc769e453baa",
+      "bytes": 240500
+    },
+    "openpilot/selfdrive/assets/fonts/NotoSansCJKkr-Regular.otf": {
+      "sha256": "e86fb33e127558b845aec3016d46c36118811a1e30fd9dacc374840ad3001221",
+      "bytes": 109356
+    },
+    "openpilot/selfdrive/assets/fonts/NotoSansCJKsc-Regular.otf": {
+      "sha256": "71933d4233b691fb499524cbf9b3d74ccdf6465c81791687e661667aefa8e660",
+      "bytes": 196068
+    },
+    "openpilot/selfdrive/assets/fonts/NotoSansCJKtc-Regular.otf": {
+      "sha256": "292f8ad096fd0a47e4016bd3607cb4edcd3b1f97634f67a115c0b0973ba5002f",
+      "bytes": 245884
+    },
+    "openpilot/selfdrive/assets/fonts/NotoSansThai-Regular.ttf": {
+      "sha256": "8656eb9e4e182333e58c59cd07ae0dd82c913d31c29b0d2726887ffbbef137a2",
+      "bytes": 26536
+    },
+    "openpilot/selfdrive/assets/fonts/unifont.otf": {
+      "sha256": "9712a9bc089af7ddc06e0826aa84f2ee23ed2f1a1dddaf2a89c2483e753a8475",
+      "bytes": 5321484
+    },
+    "openpilot/selfdrive/assets/icons/arrow-right.png": {
+      "sha256": "0a999d5f3e616eeafc310689accdd26efb90769596604a62c460ef8acece18bc",
+      "bytes": 1734
+    },
+    "openpilot/selfdrive/assets/icons/backspace.png": {
+      "sha256": "576da562df8eb513e64ccb614ec727b257cbca8b5507974d01efc0f64c5382c2",
+      "bytes": 6267
+    },
+    "openpilot/selfdrive/assets/icons/calibration.png": {
+      "sha256": "0d68f2739bd1b8fc990e0d171923c58c382714c7d8ec6cd43f1f808ac87f963c",
+      "bytes": 8910
+    },
+    "openpilot/selfdrive/assets/icons/capslock-fill.png": {
+      "sha256": "6872a1047f1a534a037be7b1367640fe1bfb205a6e1c50420a2d1a946cda78ed",
+      "bytes": 4397
+    },
+    "openpilot/selfdrive/assets/icons/checkmark.png": {
+      "sha256": "dc472f0e575e314c4006cb6e9845fb9fb9a13cf08fe74fbe1593dee53c20d977",
+      "bytes": 4329
+    },
+    "openpilot/selfdrive/assets/icons/checkmark.svg": {
+      "sha256": "17a135c18634647a73734300f5d0ad98082b07779b5553e72b99686857380ee7",
+      "bytes": 244
+    },
+    "openpilot/selfdrive/assets/icons/chevron_right.png": {
+      "sha256": "d4909d776263e223853ee49d9101e18dd220909cc8667c45bb040ea1d213ddf4",
+      "bytes": 1420
+    },
+    "openpilot/selfdrive/assets/icons/chffr_wheel.png": {
+      "sha256": "ed3225588c896efa7105778a5652962b18b2bc2d18e839b38a1753456671860d",
+      "bytes": 16884
+    },
+    "openpilot/selfdrive/assets/icons/circled_check.png": {
+      "sha256": "fdb0be280ac3a78bf95f5b92fafe94de5084ecc06836459c3a9fe1912a5b2454",
+      "bytes": 10479
+    },
+    "openpilot/selfdrive/assets/icons/circled_check.svg": {
+      "sha256": "5c88458f6326265965626cbc97c2219bd513b15a6468b08f80b43ef014b7904b",
+      "bytes": 372
+    },
+    "openpilot/selfdrive/assets/icons/circled_slash.png": {
+      "sha256": "e2a992a83eaa87762e12dc226f36af48e1cdbfc3b83ef75b6a2fc4103e3697a0",
+      "bytes": 9120
+    },
+    "openpilot/selfdrive/assets/icons/circled_slash.svg": {
+      "sha256": "4d91c86028af58cbe2770799d0fe7e55d143f9b3f67fdebcb47d328d6e410285",
+      "bytes": 223
+    },
+    "openpilot/selfdrive/assets/icons/close.png": {
+      "sha256": "7c11f831c17080a8ffaa8469cf91a079a4abfb72e5238afe02b92bceb3442db0",
+      "bytes": 2656
+    },
+    "openpilot/selfdrive/assets/icons/close.svg": {
+      "sha256": "a28a4dcaba33d800d109cc5f9a810065203d3bfccd104b2e503f6fe3fc5b6f91",
+      "bytes": 250
+    },
+    "openpilot/selfdrive/assets/icons/close2.png": {
+      "sha256": "cbfed12ddb5731b7b568539fe59f382356b46fdd146a9e0a1b768d3e5efd0378",
+      "bytes": 4350
+    },
+    "openpilot/selfdrive/assets/icons/close2.svg": {
+      "sha256": "7d2a7cd3913ab97a386e946969f6a684895adf5d641c38dfd8f5efa0197a6c58",
+      "bytes": 513
+    },
+    "openpilot/selfdrive/assets/icons/couch.png": {
+      "sha256": "911f59f248015600da7ecc689398103d47dfc57f6be17ac8c8e543a726a6c64b",
+      "bytes": 3311
+    },
+    "openpilot/selfdrive/assets/icons/couch.svg": {
+      "sha256": "dd5d8d3fce5e30662797f7eeed224f5775b2cabcc055f01f5ebf6e7b2657b616",
+      "bytes": 1801
+    },
+    "openpilot/selfdrive/assets/icons/disengage_on_accelerator.png": {
+      "sha256": "f23fabbf60fff6ef88ba6f27f2775b1ae6be172a994e41267983a9ec0f984bfc",
+      "bytes": 15059
+    },
+    "openpilot/selfdrive/assets/icons/disengage_on_accelerator.svg": {
+      "sha256": "baac01efc894527c8234b774c89cc57b69460d60ad81691a6d50ce0904c60ba7",
+      "bytes": 3638
+    },
+    "openpilot/selfdrive/assets/icons/driver_face.png": {
+      "sha256": "63a9d5027779d9f1e82da718628933eb31e5072097337c42b09bf368b642ecb7",
+      "bytes": 3769
+    },
+    "openpilot/selfdrive/assets/icons/experimental.png": {
+      "sha256": "1e58deb1778cf2826339f27e9f09eecc79ea137c1436210c14b71c352a649c77",
+      "bytes": 34953
+    },
+    "openpilot/selfdrive/assets/icons/experimental.svg": {
+      "sha256": "b7ab989c9fe22e7d2119bac5284cdccfba2889477d69f5f6c6b4470c7ee0aab3",
+      "bytes": 1801
+    },
+    "openpilot/selfdrive/assets/icons/experimental_grey.png": {
+      "sha256": "8f37a02dd914405c6f86f415700dd5985eb976b923e7abd6580d2da76533594e",
+      "bytes": 9466
+    },
+    "openpilot/selfdrive/assets/icons/experimental_grey.svg": {
+      "sha256": "90d441310f8e1833c661d8a4f0546aab2eb50eb21cc21beb0aff0d27b5ee6066",
+      "bytes": 1571
+    },
+    "openpilot/selfdrive/assets/icons/experimental_white.png": {
+      "sha256": "6b2dad33fead9f064c3a548651d6ef37daf82b6127c329683f538ec6e986ecbc",
+      "bytes": 11204
+    },
+    "openpilot/selfdrive/assets/icons/experimental_white.svg": {
+      "sha256": "82648254da89edb0cf65ef63fc5e6e0741414051bfea8a40449132fd61b1ed0f",
+      "bytes": 1533
+    },
+    "openpilot/selfdrive/assets/icons/eye_closed.png": {
+      "sha256": "64d9dc106172d3a54088ef51a27a48145154ca040c43ecbc8d626fa42e38886e",
+      "bytes": 9352
+    },
+    "openpilot/selfdrive/assets/icons/eye_closed.svg": {
+      "sha256": "fcb0db3b77d6057b94544b6d91b6078fbd91b8f2de189322b90feae3d1ac29da",
+      "bytes": 1054
+    },
+    "openpilot/selfdrive/assets/icons/eye_open.png": {
+      "sha256": "94246db66e774cbaee618931f76ecc38ecb72eca097d1e6c20a8dec2a5f8cd29",
+      "bytes": 7087
+    },
+    "openpilot/selfdrive/assets/icons/eye_open.svg": {
+      "sha256": "411774f4a80831833a344e58932c23a6ebd1db73a6327a63259deca2c6f53613",
+      "bytes": 597
+    },
+    "openpilot/selfdrive/assets/icons/eyes_crossed.png": {
+      "sha256": "4def42b5faffc6a8f747c210d24c3a1a8a7f82891738ff7f3317091e63326ba5",
+      "bytes": 1083
+    },
+    "openpilot/selfdrive/assets/icons/eyes_open.png": {
+      "sha256": "52019b72834e478588114584820313af866d2d7a737591a166c413ccaab6acf5",
+      "bytes": 931
+    },
+    "openpilot/selfdrive/assets/icons/fire.png": {
+      "sha256": "d4ae6b5f666de71c8af94e8dcace3c4ca0259070cb6e8b2bbb9ba648c28a80e1",
+      "bytes": 5926
+    },
+    "openpilot/selfdrive/assets/icons/link.png": {
+      "sha256": "a69514fe68dd1b4c73f28771640dcba10fc40989d1c7e771cb48bfd830fef206",
+      "bytes": 5713
+    },
+    "openpilot/selfdrive/assets/icons/lock_closed.png": {
+      "sha256": "3b89b8803bb610515aef051c93b833dc62f8c847558873cfd50a0b240c968449",
+      "bytes": 4911
+    },
+    "openpilot/selfdrive/assets/icons/lock_closed.svg": {
+      "sha256": "64e8fc90b79c725a8bf5bbc99643989ae885570997092762e216738805649ade",
+      "bytes": 492
+    },
+    "openpilot/selfdrive/assets/icons/menu.png": {
+      "sha256": "ae8c4922909415dcf51cca6ac54790d3019cc934bf719bda112aa7a9cba8eae3",
+      "bytes": 635
+    },
+    "openpilot/selfdrive/assets/icons/metric.png": {
+      "sha256": "f27f3dfeaa105c7757b5211cbee99b8e0c86cd059f13ac7e9a0807374f1633e7",
+      "bytes": 604
+    },
+    "openpilot/selfdrive/assets/icons/microphone.png": {
+      "sha256": "9fc1f7f31d41f26ea7d6f52b3096f7a91844a3b897bc233a8489253c46f0403b",
+      "bytes": 6324
+    },
+    "openpilot/selfdrive/assets/icons/minus.png": {
+      "sha256": "8d2c5640258911c94475615b9c4abc1485c74239f65bef70e0bab9ca84619772",
+      "bytes": 2577
+    },
+    "openpilot/selfdrive/assets/icons/monitoring.png": {
+      "sha256": "0bcd5b336b2112f43a6f63937aedec4a85047f14a8c3f482e0f85988e1abbeea",
+      "bytes": 58679
+    },
+    "openpilot/selfdrive/assets/icons/network.png": {
+      "sha256": "6eec8334979c2ba5751560a9b6b322d2a5852970b0f783b68112e92bb7c82826",
+      "bytes": 39872
+    },
+    "openpilot/selfdrive/assets/icons/road.png": {
+      "sha256": "735fa47333bddaa91af6d120fd2f76dc562657962abdc55de810d9a77d6e5516",
+      "bytes": 6674
+    },
+    "openpilot/selfdrive/assets/icons/settings.png": {
+      "sha256": "a522be46c662753063fce319bd29f252df1b2ec082eb4dbd6518d59bdf6a5fa4",
+      "bytes": 13369
+    },
+    "openpilot/selfdrive/assets/icons/shell.png": {
+      "sha256": "c37ee59b9d273193cedae3408ce29b22d8b2d27732235c62065e78c5eca5812d",
+      "bytes": 42462
+    },
+    "openpilot/selfdrive/assets/icons/shift-fill.png": {
+      "sha256": "e625ca991746abaaac375b095aa9a586601982232f4aae0fc2b17b2a524e9ce9",
+      "bytes": 3946
+    },
+    "openpilot/selfdrive/assets/icons/shift.png": {
+      "sha256": "a93dd816bd0600ad47d10ebe530326bfa725dc31e4d5e1ee275f39b10f17a59d",
+      "bytes": 4931
+    },
+    "openpilot/selfdrive/assets/icons/speed_limit.png": {
+      "sha256": "28a131696208124a61d08f49f2ad6f76e783a405354a8c52a7fa1b9d87fd4e51",
+      "bytes": 3321
+    },
+    "openpilot/selfdrive/assets/icons/triangle.png": {
+      "sha256": "5f2745ce89c926e507888ea7c6df1884aab045887048cf0d813407396a2e6b18",
+      "bytes": 5894
+    },
+    "openpilot/selfdrive/assets/icons/triangle.svg": {
+      "sha256": "a83c9a78673429caf16d02917be4c8afedadff17b6ceb8c248703ad1120116ed",
+      "bytes": 394
+    },
+    "openpilot/selfdrive/assets/icons/warning.png": {
+      "sha256": "1535245dbb4e102e07edda7c41e3f993a521e8a18711c6c797ec82c2a94e7db8",
+      "bytes": 8002
+    },
+    "openpilot/selfdrive/assets/icons/wifi_strength_full.png": {
+      "sha256": "8b7f0971cf612b905ccb338e40921932773538517fc9f0f7a4a847ad596287a9",
+      "bytes": 7171
+    },
+    "openpilot/selfdrive/assets/icons/wifi_strength_full.svg": {
+      "sha256": "3c16c005d666dea64ba6f85de50dfcf161353176eca3d9f475677cbc04fd0382",
+      "bytes": 1161
+    },
+    "openpilot/selfdrive/assets/icons/wifi_strength_high.png": {
+      "sha256": "a2afacf302bcdc3f5e0d2f734508e8fea6f803813098d52fa6b878c765ba7a58",
+      "bytes": 9360
+    },
+    "openpilot/selfdrive/assets/icons/wifi_strength_high.svg": {
+      "sha256": "0f207b9a1f4ab6009e261f03edd1d05a9d485217415664cba0253d32381e3a03",
+      "bytes": 1164
+    },
+    "openpilot/selfdrive/assets/icons/wifi_strength_low.png": {
+      "sha256": "7dfe50815c76d459dc104ce4a5e4b5dfd882e11b65e07706cacd336e69e788f4",
+      "bytes": 9756
+    },
+    "openpilot/selfdrive/assets/icons/wifi_strength_low.svg": {
+      "sha256": "6835937483e5a539618a94e3ec8fad661ae2f7afb39c958e6c8b007b8f4b9b2c",
+      "bytes": 1198
+    },
+    "openpilot/selfdrive/assets/icons/wifi_strength_medium.png": {
+      "sha256": "304ab97ac9724a7a133a36c2d14da9fe8ab660c9a29abb99cc0a4828f94d8801",
+      "bytes": 9627
+    },
+    "openpilot/selfdrive/assets/icons/wifi_strength_medium.svg": {
+      "sha256": "7ebb1fb5539d9f8ea9899acf4f9cb359503dbe22cd38a3461ad43936348475b9",
+      "bytes": 1167
+    },
+    "openpilot/selfdrive/assets/icons/wifi_uploading.png": {
+      "sha256": "8eac201013322db1580649a253da7ae38eb9f16f6089234e769b746951e874ee",
+      "bytes": 7171
+    },
+    "openpilot/selfdrive/assets/icons/wifi_uploading.svg": {
+      "sha256": "e7cfefbda22b53f7eb72a25893ab41c00dabea49f690cafb1d224375a669e608",
+      "bytes": 1170
+    },
+    "openpilot/selfdrive/assets/icons/yellow_warning.png": {
+      "sha256": "a3f14ff386f5e3e8e01ac64231b77154729516aa96a8baf85fdd98fa6be20839",
+      "bytes": 2341
+    },
+    "openpilot/selfdrive/assets/icons_mici/adb_short.png": {
+      "sha256": "263598da73c577c01cebd31ae78f45969ef8b335be1a5f55d54a696bb2982c0a",
+      "bytes": 2062
+    },
+    "openpilot/selfdrive/assets/icons_mici/alerts_bell.png": {
+      "sha256": "4ce1d357acadd798939b398cce1761ceb05564b44f2a5bc6865c7842e60e79f2",
+      "bytes": 1474
+    },
+    "openpilot/selfdrive/assets/icons_mici/alerts_pill.png": {
+      "sha256": "b3fe73cd1a24c05346a9b4a02e4f900a314c83a422beb38b0f88f91389582cd4",
+      "bytes": 3960
+    },
+    "openpilot/selfdrive/assets/icons_mici/body.png": {
+      "sha256": "6b45f88128430fb50ef51c8e08b8e2a1c8fbe0b5c3a08de9f5d9d59bc1edc82e",
+      "bytes": 4545
+    },
+    "openpilot/selfdrive/assets/icons_mici/buttons/button_circle.png": {
+      "sha256": "f92e5f0b7fc50c3b64bd18ecee8a8d518017b5461104de76dee6feb0f4f0d70d",
+      "bytes": 7496
+    },
+    "openpilot/selfdrive/assets/icons_mici/buttons/button_circle_disabled.png": {
+      "sha256": "947aa3beb7eff6afb44101daf0aeaae7b7f31961c273df00eec0ca8359233c56",
+      "bytes": 5175
+    },
+    "openpilot/selfdrive/assets/icons_mici/buttons/button_circle_pressed.png": {
+      "sha256": "70d4236bcfd3aa8f100b81179c1e0f193c6ffbd84769c4a516be4381e62b270a",
+      "bytes": 18666
+    },
+    "openpilot/selfdrive/assets/icons_mici/buttons/button_circle_red.png": {
+      "sha256": "b48d8a191979f27dae8a336f99d944008e2536f698c58cffa5f3dddc17429b45",
+      "bytes": 11451
+    },
+    "openpilot/selfdrive/assets/icons_mici/buttons/button_circle_red_pressed.png": {
+      "sha256": "ed07f72339cf1c3926a2cb7314f9baa099bcdb3f8bc89a9084661b71334b0526",
+      "bytes": 32599
+    },
+    "openpilot/selfdrive/assets/icons_mici/buttons/button_rectangle.png": {
+      "sha256": "5dedb4139a7ddeafcdaf050144769e490643820db726201a15250e1042eb6d15",
+      "bytes": 7982
+    },
+    "openpilot/selfdrive/assets/icons_mici/buttons/button_rectangle_disabled.png": {
+      "sha256": "d527dcff61fa66902681706b4916586244b8cf0520086ac980ff782ab2d99ce7",
+      "bytes": 4778
+    },
+    "openpilot/selfdrive/assets/icons_mici/buttons/button_rectangle_pressed.png": {
+      "sha256": "c6b1b0f1270a596b5ac150dee8ade54794de55b2033a529d4a17176f688aa6f0",
+      "bytes": 56738
+    },
+    "openpilot/selfdrive/assets/icons_mici/buttons/slider_bg.png": {
+      "sha256": "1ca620a05e9e69351b9bbcfcf021dae11fde26be50d7f1a39257d319f6303616",
+      "bytes": 9779
+    },
+    "openpilot/selfdrive/assets/icons_mici/buttons/toggle_dot_disabled.png": {
+      "sha256": "89ac033d879beeb0a7fa1919838e0ec64b1a625a4aafc14f7b990c607a79b676",
+      "bytes": 2220
+    },
+    "openpilot/selfdrive/assets/icons_mici/buttons/toggle_dot_enabled.png": {
+      "sha256": "532bf0e8535e3f9bc13af13029a27d6c14ae788d52224b6c65623334f62fada0",
+      "bytes": 6048
+    },
+    "openpilot/selfdrive/assets/icons_mici/buttons/toggle_pill_disabled.png": {
+      "sha256": "7891a628bd9cedc1097114e89fcec4a50a88021c7d6c63f1329d087be9e1783e",
+      "bytes": 3065
+    },
+    "openpilot/selfdrive/assets/icons_mici/buttons/toggle_pill_enabled.png": {
+      "sha256": "ad31da78544edd18d0ac154670f22d1cd1ac57f50576002f04701d22c59502a8",
+      "bytes": 8257
+    },
+    "openpilot/selfdrive/assets/icons_mici/chestnut.png": {
+      "sha256": "d05f85ba6e53417260335bb52e2f4c492311a1eb4136e7fa1fc49aa14095bcaf",
+      "bytes": 1914
+    },
+    "openpilot/selfdrive/assets/icons_mici/chestnut_green.png": {
+      "sha256": "336230790162965fb0b1c88551c4715fe6adea0d7b39940205d7f7b871865ed7",
+      "bytes": 10911
+    },
+    "openpilot/selfdrive/assets/icons_mici/chestnut_orange.png": {
+      "sha256": "845c40ff0d37612e8f2f482a36845744b5ae91ce2fcfc8117990d7d278b59820",
+      "bytes": 13079
+    },
+    "openpilot/selfdrive/assets/icons_mici/exclamation_point.png": {
+      "sha256": "254b7f753b70c964847b686f0f71af751f2f49beea6ede4aeb333fe06062a257",
+      "bytes": 2289
+    },
+    "openpilot/selfdrive/assets/icons_mici/experimental_mode.png": {
+      "sha256": "01841b602632c66ab14a8e52b874a1623f09641dc2ef0620f4e2d00bb4a913f3",
+      "bytes": 16243
+    },
+    "openpilot/selfdrive/assets/icons_mici/microphone.png": {
+      "sha256": "744dbaa68ee74e300cd46439bad79449c860e1c5c027304b0f382bd5383fba77",
+      "bytes": 6817
+    },
+    "openpilot/selfdrive/assets/icons_mici/offroad_alerts/big_alert.png": {
+      "sha256": "aeee7f049879caff52320fab5f286cf3fd6a52c820cd8e150ff242e53a14176f",
+      "bytes": 14774
+    },
+    "openpilot/selfdrive/assets/icons_mici/offroad_alerts/big_alert_pressed.png": {
+      "sha256": "0b59ddada9c9e0e7972ead27396ebe6c10fd2352687b18ff6b476f61f74d80bf",
+      "bytes": 46106
+    },
+    "openpilot/selfdrive/assets/icons_mici/offroad_alerts/green_wheel.png": {
+      "sha256": "3b11ee84d48972a2499cb29f01594d77a1a39692f6424a315a3f83262bc16087",
+      "bytes": 13481
+    },
+    "openpilot/selfdrive/assets/icons_mici/offroad_alerts/medium_alert.png": {
+      "sha256": "46d08a8a08b42d466ff45d8ad6d2578e345dcbb1c06c126ad361873d9d35eaec",
+      "bytes": 12877
+    },
+    "openpilot/selfdrive/assets/icons_mici/offroad_alerts/medium_alert_pressed.png": {
+      "sha256": "42ea275e5fe0a8a0e2fddb5a4a8487806fb22850115ea3646ee8f213d5fd6bb6",
+      "bytes": 37202
+    },
+    "openpilot/selfdrive/assets/icons_mici/offroad_alerts/orange_warning.png": {
+      "sha256": "d548405a65ba4d4590c55866612dc6aa0e78d9278fc864ef60fe3e463edf4a68",
+      "bytes": 12169
+    },
+    "openpilot/selfdrive/assets/icons_mici/offroad_alerts/red_warning.png": {
+      "sha256": "b6fc63326d34fbe72f6daf104d101ce19e547dbfe134427c067c957a7179df74",
+      "bytes": 12124
+    },
+    "openpilot/selfdrive/assets/icons_mici/offroad_alerts/small_alert.png": {
+      "sha256": "cfbf38672a893fd1d8fadf942354d2511e2436814a9af0e5c188cbb427fc6c70",
+      "bytes": 12281
+    },
+    "openpilot/selfdrive/assets/icons_mici/offroad_alerts/small_alert_pressed.png": {
+      "sha256": "a7102850bcfb075a285041cecb546559374a905403ab3b9814fa6097d2d822dd",
+      "bytes": 34680
+    },
+    "openpilot/selfdrive/assets/icons_mici/onroad/blind_spot_left.png": {
+      "sha256": "77b20a8c478d982412d556afb3a035b80b4aa9fe7a86aea761af4a42147d9435",
+      "bytes": 45297
+    },
+    "openpilot/selfdrive/assets/icons_mici/onroad/bookmark.png": {
+      "sha256": "fd91685bf656e828648acf035a4737acb2c4709e8514cf0aa0a10fa470a9bb60",
+      "bytes": 11580
+    },
+    "openpilot/selfdrive/assets/icons_mici/onroad/driver_monitoring/dm_background.png": {
+      "sha256": "cb89d9f11cf44992f92142aa5ad84e1ac700a2601aff2abab373e2a822af149e",
+      "bytes": 11678
+    },
+    "openpilot/selfdrive/assets/icons_mici/onroad/driver_monitoring/dm_cone.png": {
+      "sha256": "5f5d4b7bd406114945e53f4d56089102ee83ba7d0a4590a371f7acab90c7ad53",
+      "bytes": 1862
+    },
+    "openpilot/selfdrive/assets/icons_mici/onroad/driver_monitoring/dm_person.png": {
+      "sha256": "e2772c6a9fe9c57099d347ad49f0cb7c906593f1fdf0e6dde96d104baf0200b0",
+      "bytes": 1365
+    },
+    "openpilot/selfdrive/assets/icons_mici/onroad/eye_fill.png": {
+      "sha256": "07310879d093108435c0011846ae1184966db86443bc6e7ca036a6fa6123700b",
+      "bytes": 4983
+    },
+    "openpilot/selfdrive/assets/icons_mici/onroad/eye_orange.png": {
+      "sha256": "7be447e56d649e0362ef650494b484e140a01ead31799ce43b266f5781c918d2",
+      "bytes": 36473
+    },
+    "openpilot/selfdrive/assets/icons_mici/onroad/glasses.png": {
+      "sha256": "56de402482b5987ed9a0ff3f793a1c89f857304b34fbb8a3deb5b5d4a332be1c",
+      "bytes": 3688
+    },
+    "openpilot/selfdrive/assets/icons_mici/onroad/onroad_fade.png": {
+      "sha256": "2aa6d04ba038f15a92868de6e6c7b04f624b4fe89d03bc3e9c4cd44cb729b24e",
+      "bytes": 38317
+    },
+    "openpilot/selfdrive/assets/icons_mici/onroad/turn_signal_left.png": {
+      "sha256": "f9f7d0554c0c79ab605c1119ffdef0a4f55196e53b75a65b6ac5218911e24a02",
+      "bytes": 45701
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings.png": {
+      "sha256": "14b457d2dc19d8658f525cc6989c9cfcf0edaf695b18767514242acbdbe2a6dd",
+      "bytes": 2198
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/comma_icon.png": {
+      "sha256": "7ad4ee47ec6470f788a026f95ed86bf344f64f9cf3186c9c78927233d2694a1d",
+      "bytes": 1388
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/developer/ssh.png": {
+      "sha256": "b26133bee089627202d5e89a4e939ad23aaceb5d8e26d7381b1aea3ef892f2ee",
+      "bytes": 2620
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/developer_icon.png": {
+      "sha256": "ebb4f7ad9fd2f9fb3c69a38fbc00cbe690809b0ff202ffd4768ae5b699acc035",
+      "bytes": 1759
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/device/cameras.png": {
+      "sha256": "5f47e636025e044977f278a35546e0fc971f48fd53c2eeafd3508e95c35f378f",
+      "bytes": 3117
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/device/fcc_logo.png": {
+      "sha256": "3cac8546d19e75a9edcbc0721a887fd74c8a3c41bfe19e36186b2b2bcabdae98",
+      "bytes": 1817
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/device/info.png": {
+      "sha256": "66858a5d3302333485fa391f7a9bb3a9b1ab4ae881e7fb47b04c3a4507011c94",
+      "bytes": 2613
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/device/lkas.png": {
+      "sha256": "a05a41e66c7a24d461a4bbcdab0979031e5900e1db270af52ca363f0bed521f5",
+      "bytes": 2028
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/device/pair.png": {
+      "sha256": "678483230831d0a7d3dcad5f067a7b641e5d2ae0db477665dfc6c53a675eba18",
+      "bytes": 1779
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/device/power.png": {
+      "sha256": "a34885e79f42d19b7777dd07e7ab51df344880cb770c48e0baaddb177c2ae938",
+      "bytes": 2228
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/device/reboot.png": {
+      "sha256": "1356fe3ddda14568e9be1dca4e16ca9048852e3a27a3f531cd58d7d368485a82",
+      "bytes": 2362
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/device/uninstall.png": {
+      "sha256": "50a8ce4fa8ff7f5b0f56ba0dc65b4802dc0be2dc0967b5cb3a15e3b79a4e513e",
+      "bytes": 2424
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/device/up_to_date.png": {
+      "sha256": "61bc44b6e0f99640434d6abcb64880c7bf575eda5cdcf7d74cba7d73307dd39a",
+      "bytes": 2739
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/device/update.png": {
+      "sha256": "f28cdeaba9146521335bc11ad60a8e0368eb0ed1381e88b35a12a6138ba22ed6",
+      "bytes": 2409
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/device_icon.png": {
+      "sha256": "2273629450aa870f0964dd285721c35d3d313fb8b4684122215a65844ae744d0",
+      "bytes": 1888
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/firehose.png": {
+      "sha256": "416656861380981acc114e5285b448d6e4dc42b98539d0ba16821cbc3db89208",
+      "bytes": 1364
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/horizontal_scroll_indicator.png": {
+      "sha256": "af8d5ecb6468442361462aa838a2d234b1256b8139418be8ef2962e4350cfbef",
+      "bytes": 2176
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/keyboard/backspace.png": {
+      "sha256": "69bb4a401429c3fdf473778f751288b2aafea27eb13f09b20e83d55212f084ba",
+      "bytes": 1963
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/keyboard/caps_lock.png": {
+      "sha256": "563c211fd98018e24418235602e596f3a481f04fddde0a14590e563474fcffd2",
+      "bytes": 1423
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/keyboard/caps_lower.png": {
+      "sha256": "6f81811ea9cdc409d5549035ca928c76e22396193e1cefb6cacab3747ee0c297",
+      "bytes": 1142
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/keyboard/caps_upper.png": {
+      "sha256": "60875e73dd9659122c9248d8e99d5cfd301d68dabeec2cb42cebce812c9baae9",
+      "bytes": 1102
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/keyboard/enter.png": {
+      "sha256": "3dd956d5ccfce01a01bea74ef59c9e73dfca406a5ff9ac62417203afa6027fba",
+      "bytes": 5620
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/keyboard/enter_disabled.png": {
+      "sha256": "1dd1c2308872729d58adab390030ae9c987dc7908f0c39391651ea2b6cb620c5",
+      "bytes": 2445
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/keyboard/keyboard_background.png": {
+      "sha256": "399e7ff9dea6710244827c91014f1a08d8ae989dce922928d6b7f7504b15ba79",
+      "bytes": 11321
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/keyboard/space.png": {
+      "sha256": "f431e428772991323ee3ce662479e1ab29c3d80a72b93cf9c9673716ba245d5f",
+      "bytes": 654
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/cell_strength_full.png": {
+      "sha256": "fb7af523411c5ed75c6e1418dfc2a379486f6dbd7f2f1c281d3ff54e1ea7810e",
+      "bytes": 777
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/cell_strength_high.png": {
+      "sha256": "db86e176e016458fcff00d40e37636a808977e0cc01bcc9c04b31a1001562de8",
+      "bytes": 936
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/cell_strength_low.png": {
+      "sha256": "1cd0b3a00db36ee7eacf5887d07d40e5351fb441d98643a02df4c742cd1e935d",
+      "bytes": 945
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/cell_strength_medium.png": {
+      "sha256": "25724acfe0c261070b103ef5933053d5dd8b726ece42d0e5f715f05c67be2294",
+      "bytes": 956
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/cell_strength_none.png": {
+      "sha256": "cb0aeb6260bcd0642204f842112479f4b19b350db9addae5e14c9c5131bcf956",
+      "bytes": 781
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/new/forget_button.png": {
+      "sha256": "6ccb5f2298389ae36df87de84d85440ee5a82c50e803c9bd362c9b89ea45aa69",
+      "bytes": 6611
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/new/forget_button_pressed.png": {
+      "sha256": "d9f17c82b2f349d107d27c69418f054be1f1753f970c7d3d3520c1e65de00511",
+      "bytes": 12894
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/new/lock.png": {
+      "sha256": "7488c1aa69b728387b2cf300a614cc64e3c2305d2b509c14cf44cad65d20d85c",
+      "bytes": 2509
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/new/trash.png": {
+      "sha256": "9074162bf0469fc5ab0b5711a121289a983c887161df269ac120edd8fd024499",
+      "bytes": 1533
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/tethering.png": {
+      "sha256": "b1e322ea6e57b05b3515fcd4e9100f890e6ff80607c11360b7927fa5a9765beb",
+      "bytes": 2752
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/wifi_strength_full.png": {
+      "sha256": "73c76e5240bdff64c1d1ed0ac2bb9c3fadb2fd61fbf8dc710b812757af8bcf6c",
+      "bytes": 2026
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/wifi_strength_low.png": {
+      "sha256": "e66cc6174a54177793c42ef3525a9aa1592e05b0abb677442c7226269d1371a5",
+      "bytes": 2196
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/wifi_strength_medium.png": {
+      "sha256": "7948a9234f2bc996aefb3a9e58a37c06ebbf54e8e4596e47800f78ef7e81961f",
+      "bytes": 2231
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/wifi_strength_none.png": {
+      "sha256": "a57ea402448dacc2026631174e448b6254698fe92309221576400cbf28196936",
+      "bytes": 2195
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/network/wifi_strength_slash.png": {
+      "sha256": "7e6d166bdbbcdc106e7cd4a44ba85848888f18a6ef34e86daac8e12a3f519443",
+      "bytes": 2318
+    },
+    "openpilot/selfdrive/assets/icons_mici/settings/software.png": {
+      "sha256": "190e196eba6feffec125ac66cf7e77620b759e346fa69b80e3a3884a5694cb15",
+      "bytes": 3225
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/cancel.png": {
+      "sha256": "a6892bd4d9b14b587fa491a6d608562e38819b4c618b1d7a3e8c384f05d52a2b",
+      "bytes": 1245
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/continue.png": {
+      "sha256": "3428d8fcf2ecf9542c524706124f82b7fc809453c63418c9234ac9df5d85bd24",
+      "bytes": 10074
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/continue_disabled.png": {
+      "sha256": "b2810add4943dd4f20a984ed6011b520925919a58d5c0dd0d846fc4d7f8a1d02",
+      "bytes": 7109
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/continue_pressed.png": {
+      "sha256": "3a3a87454a3d2f1ebb327211062c52480de945673dcfd137c5da3df8fa98d731",
+      "bytes": 22400
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/driver_monitoring/dm_check.png": {
+      "sha256": "2290105f9b055b3c3d482d883d148de3418cad07b653133b0f61137e1976c407",
+      "bytes": 1412
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/driver_monitoring/dm_question.png": {
+      "sha256": "ec9691d2572e2e084f0b3c99a1dcd0daadf5040d16c02347ffec9dd5466c061a",
+      "bytes": 1438
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/factory_reset.png": {
+      "sha256": "122a614d1aa26187507951f932160eebfddfebcb4293e78f8d23e350fc97bc0f",
+      "bytes": 11489
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/green_dm.png": {
+      "sha256": "8b6d7747dd6bbf47d9782fc0d847c224b933f6616218ade1f9220018aa9d6acc",
+      "bytes": 15052
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/green_info.png": {
+      "sha256": "5055bc385a1de674e6f3cbafdb611ee4b1088de2a3c357bce76f6a192226c952",
+      "bytes": 14154
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/orange_dm.png": {
+      "sha256": "9c45ab0b949c1c71651f9f48cf6ff10196d64eb85e042b063e92b1d7ca02dcb5",
+      "bytes": 13155
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/red_warning.png": {
+      "sha256": "e8e8bc3c15df7512a81b902e47fb069eff1370c833095d3b25f3866efb815fff",
+      "bytes": 11123
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/reset_failed.png": {
+      "sha256": "8d5b8f76e5f47e77e5af3016ebdbe548ad3bc9af83a1111b3214bf4017c95a28",
+      "bytes": 11792
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/restore.png": {
+      "sha256": "63c1499106621a4d927c21b2b04c87235a927216d9f513a0205f0fe03b8c799b",
+      "bytes": 12320
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/small_button.png": {
+      "sha256": "13919cf5df3137fdffdb8cc53a1215f13bf478a780ca8614234b7af0cdc0e766",
+      "bytes": 5409
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/small_button_disabled.png": {
+      "sha256": "6ed258d8e0531c19705953ded065c6d5e14929728a2909d8d4e335898fa5d080",
+      "bytes": 4056
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/small_button_pressed.png": {
+      "sha256": "c032fd71ccfebe161827de420771e7927fe1ed799e615e24d458cfd79fead7f7",
+      "bytes": 7875
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/small_slider/slider_arrow.png": {
+      "sha256": "75a6557935075a646b17d083202832daafb263d4cfa38aea2af407afc04e2ef4",
+      "bytes": 1312
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/small_slider/slider_bg_larger.png": {
+      "sha256": "950d55fd7294fb05c10ba9944537c02637776497c159e1b7d145c73f0f9d3253",
+      "bytes": 7119
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/small_slider/slider_black_rounded_rectangle.png": {
+      "sha256": "61281d3e3ef5ac5a8fe75405a93c2096bf235f090b27832e986444e3fb85715e",
+      "bytes": 7427
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/small_slider/slider_black_rounded_rectangle_pressed.png": {
+      "sha256": "d1dd642ae4708cc7a837e8ef8b4c75f578654d241f8c854249c2b1ade640ceca",
+      "bytes": 14058
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/small_slider/slider_green_rounded_rectangle.png": {
+      "sha256": "5ba98ab2b75f0c1f8fdffb9eab0a742645b80ef4ca404c007f374a5e0fd48d8c",
+      "bytes": 10254
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/small_slider/slider_green_rounded_rectangle_pressed.png": {
+      "sha256": "4545fdbaf67402b28b18644a7353a0620250ece6416c1b0ce0e27c758817b042",
+      "bytes": 26729
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/start_button.png": {
+      "sha256": "5e993247160edcbc9c3cba3efa93169028568d484bcfd0bf64f3e3a7ec7556c0",
+      "bytes": 18608
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/start_button_pressed.png": {
+      "sha256": "1c4f1002ecde9a2b33779c2e784a39b492b4c8d76abc063e935ce0aa971925dd",
+      "bytes": 65513
+    },
+    "openpilot/selfdrive/assets/icons_mici/setup/warning.png": {
+      "sha256": "7584d32ac0231381e38646fdac2f71b4517905ef22024f01bd9e124d3918f33a",
+      "bytes": 9194
+    },
+    "openpilot/selfdrive/assets/icons_mici/ssh_short.png": {
+      "sha256": "ef1735e6effcb625ea618fa35a6b908b28ca483d5997e15241d48e2d3d29819e",
+      "bytes": 1433
+    },
+    "openpilot/selfdrive/assets/icons_mici/turn_intent_left.png": {
+      "sha256": "001cb8227eaaff5367055395d9b3ccd5822f9a47276091832d8ad28b074d77c9",
+      "bytes": 914
+    },
+    "openpilot/selfdrive/assets/icons_mici/wheel.png": {
+      "sha256": "8cf9c6361ed82551eb99e028e0a75ff56b72ca856ccf7c9a76afe6745434980a",
+      "bytes": 2720
+    },
+    "openpilot/selfdrive/assets/icons_mici/wheel_critical.png": {
+      "sha256": "4c3d9082b295f9e5ddef93f8d4e9cb961ea2374c7affd26394bbccb26e7137b2",
+      "bytes": 11023
+    },
+    "openpilot/selfdrive/assets/images/button_continue_triangle.png": {
+      "sha256": "b9218e02c42b0f80858477255e24a97da4cf0b2898fc76f3806409d65b104668",
+      "bytes": 4510
+    },
+    "openpilot/selfdrive/assets/images/button_continue_triangle.svg": {
+      "sha256": "8084e5a8bbc16956a98b010092ae1c4e32b3391b0551fa1cd65cb1e2bb59d3df",
+      "bytes": 169
+    },
+    "openpilot/selfdrive/assets/images/button_flag.png": {
+      "sha256": "cd1528167f0cd22cb9a16f2f04e914b2bff78ffca26be8157b9ad208b485d8ea",
+      "bytes": 1611
+    },
+    "openpilot/selfdrive/assets/images/button_home.png": {
+      "sha256": "3fca2a1f675cad4f454f3ba56d6e7f090a352321b61f241fc2ffcbede7a7593a",
+      "bytes": 1501
+    },
+    "openpilot/selfdrive/assets/images/button_settings.png": {
+      "sha256": "9ec603a5e8f08eb46512c8f0fbb684ff93533964b13a8a8ce45aec95b85e3800",
+      "bytes": 957
+    },
+    "openpilot/selfdrive/assets/images/spinner_comma.png": {
+      "sha256": "78d140abe572b00765a7ece46bd990cff1287c2e8705a5f551b74461ab307b6b",
+      "bytes": 15713
+    },
+    "openpilot/selfdrive/assets/images/spinner_track.png": {
+      "sha256": "49e9bad844598b0aa13c75fad7685f89f7ab190932963a8c70014553b9da37ae",
+      "bytes": 41523
+    },
+    "openpilot/selfdrive/assets/sounds/critical.wav": {
+      "sha256": "ca29ff46fbd6d00cc02596de8c9abfbf1cacdc6a7b2f98b27a74d24c790da004",
+      "bytes": 52374
+    },
+    "openpilot/selfdrive/assets/sounds/disengage.wav": {
+      "sha256": "6f47633b5082b911e79dd13fc2d1f4c2a9d44d2fe0860f3d390ffc4e3d772f7d",
+      "bytes": 97120
+    },
+    "openpilot/selfdrive/assets/sounds/dm_critical.wav": {
+      "sha256": "538271820d618046009bb456e930598f2736dd1a6174c11925ec3912581b05c1",
+      "bytes": 52374
+    },
+    "openpilot/selfdrive/assets/sounds/dm_warning.wav": {
+      "sha256": "634fad6590295ef2e73d5f7e5aecbb5dd245a0f7692f1e300c2ebac95aabb8e3",
+      "bytes": 73026
+    },
+    "openpilot/selfdrive/assets/sounds/engage.wav": {
+      "sha256": "a380fe0a022856b302841a0dd19b71eab318c6b08ec851f128942758a7f1631a",
+      "bytes": 97120
+    },
+    "openpilot/selfdrive/assets/sounds/pre_alert.wav": {
+      "sha256": "cc9e67cfaba77e8e4f4049f0add9238660e4cf8f886c6915600d8f47a30c98db",
+      "bytes": 97120
+    },
+    "openpilot/selfdrive/assets/sounds/prompt_single_high.wav": {
+      "sha256": "dbfa5858c0a672411ffdc691efdecb06d01ae458cc1df409bcf3fdeaa4756f72",
+      "bytes": 34638
+    },
+    "openpilot/selfdrive/assets/sounds/prompt_single_low.wav": {
+      "sha256": "db9671bb03e01f119bba1eb6cc0507e0f039ac4e5b7f9f839a87071c52e86e56",
+      "bytes": 44416
+    },
+    "openpilot/selfdrive/assets/sounds/refuse.wav": {
+      "sha256": "081d64ca28a84a59ff5e6aea4732865b8687585938b8a287bc7e6a49d0646508",
+      "bytes": 97120
+    },
+    "openpilot/selfdrive/assets/sounds/warning.wav": {
+      "sha256": "1bb440f424c989c06e203bfba0b32d39aede8f6c78a9b335e5e778460202b601",
+      "bytes": 73026
+    },
+    "openpilot/selfdrive/assets/training/step0.png": {
+      "sha256": "5da731d3b43d7203eda3828c72328e5164f3c5dc14881cee20b474f8a445790c",
+      "bytes": 1605451
+    },
+    "openpilot/selfdrive/assets/training/step1.png": {
+      "sha256": "522d7c48937b5551313884051e1018f20d2fca86db31b587222867e86254f08a",
+      "bytes": 51774
+    },
+    "openpilot/selfdrive/assets/training/step10.png": {
+      "sha256": "fa3ab22eb5e4f1564f37df24a14b12c34b965cc8539b2df0fb6ae6d5c4ebc857",
+      "bytes": 1034167
+    },
+    "openpilot/selfdrive/assets/training/step11.png": {
+      "sha256": "bad2dffbc75b502a713ceb718dceb5f3a5a2e34fcffc438ee8acfc6580bbc94f",
+      "bytes": 53375
+    },
+    "openpilot/selfdrive/assets/training/step12.png": {
+      "sha256": "aff8f1b35a29e7353a58ca6349ebe1c0faff162596a134fdd74b126b8c1cdd28",
+      "bytes": 1092478
+    },
+    "openpilot/selfdrive/assets/training/step13.png": {
+      "sha256": "d18847d47d963f2536a748ddfde1df4ef3d1dc2638af94974cd6af1539d9c18b",
+      "bytes": 37382
+    },
+    "openpilot/selfdrive/assets/training/step14.png": {
+      "sha256": "be7402c00ea0e67b60394a5858976237af61cccec7068bee0c8ec6aae1385af4",
+      "bytes": 1879281
+    },
+    "openpilot/selfdrive/assets/training/step15.png": {
+      "sha256": "8c7c981f2601607381a341da47bd044d24a8e301c91c5b7426cbce9570f5bad0",
+      "bytes": 1104967
+    },
+    "openpilot/selfdrive/assets/training/step16.png": {
+      "sha256": "12780d35798dfab1353bf428927e1c04ca88394675a63c134a0bbbd137201715",
+      "bytes": 35997
+    },
+    "openpilot/selfdrive/assets/training/step17.png": {
+      "sha256": "cfb184957120901b5b803571fa14bd9e7ae98da0b46425e3b75b00a8a69e1246",
+      "bytes": 43545
+    },
+    "openpilot/selfdrive/assets/training/step18.png": {
+      "sha256": "a29dd3ee7abc5d338db395576e7765ba3d4d56568820f8dfbbe938c62fbee6de",
+      "bytes": 1646908
+    },
+    "openpilot/selfdrive/assets/training/step2.png": {
+      "sha256": "bdfa7fc67a0d89f5503bb30f1822fa72cbd140c84e14170957531c5166159519",
+      "bytes": 36869
+    },
+    "openpilot/selfdrive/assets/training/step3.png": {
+      "sha256": "c476251bb58200d008fc0aa172173983d9fb0b71ab860f199d9d431910bf5c61",
+      "bytes": 966466
+    },
+    "openpilot/selfdrive/assets/training/step4.png": {
+      "sha256": "95da2bda3ba1c046620a88b2caf77fd9a2b980b6b746e700d3574f4f1c0d6ce9",
+      "bytes": 1287393
+    },
+    "openpilot/selfdrive/assets/training/step5.png": {
+      "sha256": "886903bfaf0567939125daa0bc7fcaecd08c9f34f4e7c8b137a30986f80e4a6e",
+      "bytes": 41823
+    },
+    "openpilot/selfdrive/assets/training/step6.png": {
+      "sha256": "c8dc0b499b0c9dbf7e5e967ea2d55c7ed78f8e56f9055d98662f247de960eda4",
+      "bytes": 1231263
+    },
+    "openpilot/selfdrive/assets/training/step7.png": {
+      "sha256": "690be96b7a3cacaeb8d11bbab043a3e6dd65710ce197a8c7d35a3124dce590d1",
+      "bytes": 936779
+    },
+    "openpilot/selfdrive/assets/training/step8.png": {
+      "sha256": "7550d18943d77a2b0d8b3a1e702af4ceb7c3e9d08614a8d941a9f73a615cf7b7",
+      "bytes": 728928
+    },
+    "openpilot/selfdrive/assets/training/step9.png": {
+      "sha256": "e48538287fc974e5ec97403ba05145c21035f50bdf28b6e00275a4b428643f09",
+      "bytes": 1024935
+    },
+    "openpilot/selfdrive/modeld/models/dmonitoring_model.onnx": {
+      "sha256": "dd299afabe7a3e0d04cbe2bd97fdb0c93bba8ad6d3cc3663a0e0ededaf243ac2",
+      "bytes": 7497335
+    },
+    "openpilot/selfdrive/modeld/models/driving_supercombo.onnx": {
+      "sha256": "659727c4d4839adc4992a254409a54259a8756a743f2d567bf5fdc6579f8009b",
+      "bytes": 60881999
+    },
+    "openpilot/selfdrive/ui/installer/inter-ascii.ttf": {
+      "sha256": "1ef26a4099ef867f3493389379d882381a2491cdbfa41a086be8899a2154dcb3",
+      "bytes": 26160
+    },
+    "openpilot/sunnypilot/selfdrive/assets/icons/clock.png": {
+      "sha256": "e095cfc4de71788bd4a99699a2e7ab4098cd426277d672b9e43981c5fab8b40f",
+      "bytes": 16407
+    },
+    "openpilot/sunnypilot/selfdrive/assets/icons/star-empty.png": {
+      "sha256": "3731604f80e83a1fdb7c258baf6530b81190eeec82e6443172e84a35b7a74c02",
+      "bytes": 1088
+    },
+    "openpilot/sunnypilot/selfdrive/assets/icons/star-filled.png": {
+      "sha256": "0c2a513b7f2da004f145b7d689654cc65137f1b146d484fbce7ce727a297b62c",
+      "bytes": 861
+    },
+    "openpilot/sunnypilot/selfdrive/assets/icons_mici/always_offroad.png": {
+      "sha256": "e459241d896824f5e8207d568847acab3dedd41caae7af59d4c17e043663b0c9",
+      "bytes": 4035
+    },
+    "openpilot/sunnypilot/selfdrive/assets/icons_mici/disable_offroad.png": {
+      "sha256": "27a0fca872d4586f578d246890b83674cdb7ecb03f58b2b0379b4b64a5816053",
+      "bytes": 3908
+    },
+    "openpilot/sunnypilot/selfdrive/assets/icons_mici/sunnylink.png": {
+      "sha256": "447099e93e303b29e7b3eac237bb0f27f8c5e12786991139aee2432532a75f58",
+      "bytes": 12310
+    },
+    "openpilot/sunnypilot/selfdrive/assets/images/green_light.png": {
+      "sha256": "3aa5ec9ac1daee6a549e62647d90bcaa66d2485f7df7f386ff902fcfb04c1716",
+      "bytes": 6583
+    },
+    "openpilot/sunnypilot/selfdrive/assets/images/lead_depart.png": {
+      "sha256": "087db35bd469e85aefe3b45636f11ab3e8b55ceb7bc94ea059cfd9a69c2f338f",
+      "bytes": 8914
+    },
+    "openpilot/sunnypilot/selfdrive/assets/images/spinner_sunnypilot.png": {
+      "sha256": "9dbacb55581a5ea8cbcd5cea0560ec21d96ac7185463a40fff0f81bebf044ffa",
+      "bytes": 23187
+    },
+    "openpilot/sunnypilot/selfdrive/assets/img_minus_arrow_down.png": {
+      "sha256": "ad42ecaeff96a0a6c1a6db67b01e3c0452566906dd3a7f0336a1010ae854d27b",
+      "bytes": 60924
+    },
+    "openpilot/sunnypilot/selfdrive/assets/img_plus_arrow_up.png": {
+      "sha256": "1fdea39873f60a0c4b216b75792e826f3633091a72ea2abd05740bd6e4e72089",
+      "bytes": 63058
+    },
+    "openpilot/sunnypilot/selfdrive/assets/logo.png": {
+      "sha256": "66b3aefa108dd0c7f64205a11e424430c318e6fd06de31b5550d0b9d05616e6a",
+      "bytes": 19035
+    },
+    "openpilot/sunnypilot/selfdrive/assets/offroad/icon_display.png": {
+      "sha256": "614767308d435d165a9ab78e3eac22ee15697d94066df8200ef32afb33ef8d60",
+      "bytes": 5698
+    },
+    "openpilot/sunnypilot/selfdrive/assets/offroad/icon_exit_offroad.png": {
+      "sha256": "d44f71f7603b106986fff7835f35c4c18c4c619a29e6292f8626ae3eedd85e57",
+      "bytes": 7811
+    },
+    "openpilot/sunnypilot/selfdrive/assets/offroad/icon_firehose.png": {
+      "sha256": "a258a022f0ab90368327d899ed4fb85b47dd0e35c93508e35851d9c3184528c0",
+      "bytes": 36382
+    },
+    "openpilot/sunnypilot/selfdrive/assets/offroad/icon_firehose.svg": {
+      "sha256": "fefe69ef501c2c18ddba6d946ac0646c9b07d408ee03bcebbf2e91195b6ccb76",
+      "bytes": 1914
+    },
+    "openpilot/sunnypilot/selfdrive/assets/offroad/icon_home.png": {
+      "sha256": "8623dbc5c7dd043a91d98777cb423cfd116014ed6390af6d7d00c1f8dea3c6e8",
+      "bytes": 1181
+    },
+    "openpilot/sunnypilot/selfdrive/assets/offroad/icon_home.svg": {
+      "sha256": "1673f8d46251a05787b60346193852991739345506dc7e9b106dfb370d3611ed",
+      "bytes": 489
+    },
+    "openpilot/sunnypilot/selfdrive/assets/offroad/icon_lateral.png": {
+      "sha256": "f993debd55727b9ad0c726b8a0d5ec76b146ee3f296b30eba8e53d61b33b24fd",
+      "bytes": 21750
+    },
+    "openpilot/sunnypilot/selfdrive/assets/offroad/icon_map.png": {
+      "sha256": "57a92adcf88c7223b07697f8c2b315f4f4a34b32a866284610d5250144863c6f",
+      "bytes": 28235
+    },
+    "openpilot/sunnypilot/selfdrive/assets/offroad/icon_models.png": {
+      "sha256": "d9b431c274a55437b5a65ada7c85503e137bc2ffa8917510ad9affb14a407d82",
+      "bytes": 14366
+    },
+    "openpilot/sunnypilot/selfdrive/assets/offroad/icon_software.png": {
+      "sha256": "01fd38c0d5b05c3ce4ed07bfe4cd47a3ea61f68f24e6cc3058190d90d8200f9b",
+      "bytes": 4785
+    },
+    "openpilot/sunnypilot/selfdrive/assets/offroad/icon_toggle.png": {
+      "sha256": "11336d2f65100bc0dc2a53e09efae41ae85817b27e1a5bf134cc995e631c5b52",
+      "bytes": 4073
+    },
+    "openpilot/sunnypilot/selfdrive/assets/offroad/icon_trips.png": {
+      "sha256": "f8e5ba807427b7533f513fdd9ca270e420f3ccb63b2182203ed71453449c127a",
+      "bytes": 5354
+    },
+    "openpilot/sunnypilot/selfdrive/assets/offroad/icon_vehicle.png": {
+      "sha256": "3d7726f7c6a8106c767ae974ce7395a399dbf0a934779a7710b748917c29cf6e",
+      "bytes": 11365
+    },
+    "openpilot/sunnypilot/selfdrive/assets/offroad/icon_visuals.png": {
+      "sha256": "3ecaac6fb687fcab3300d1fe2dfea96fb49734d634a663e2c02ee0b26ebd773e",
+      "bytes": 20632
+    },
+    "openpilot/tools/cabana/assets/cabana-icon.png": {
+      "sha256": "015cea9d425f747bce856fd2f5a6a57fca322159dde54554de11eda076273595",
+      "bytes": 18008
+    }
+  },
+  "omitted_optional_assets": [
+    "openpilot/selfdrive/modeld/models/big_driving_supercombo.onnx"
+  ],
+  "default_mode": "observation",
+  "full_comma_build_verified": false,
+  "vehicle_lateral_validated": false,
+  "targeted_tests_passed": 24
+}

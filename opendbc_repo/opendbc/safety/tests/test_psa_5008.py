@@ -1,0 +1,122 @@
+import unittest
+
+from opendbc.car.structs import CarParams
+from opendbc.car.psa.psacan import create_p87_lka
+from opendbc.safety.tests.common import CANPackerSafety, make_msg
+from opendbc.safety.tests.libsafety import libsafety_py
+
+
+class TestP87Safety(unittest.TestCase):
+  def setUp(self):
+    self.safety = libsafety_py.libsafety
+    self.assertEqual(self.safety.set_safety_hooks(CarParams.SafetyModel.psa, 0x5008), 0)
+    self.safety.init_tests()
+    self.safety.set_timer(100_000)
+    self.packer = CANPackerSafety('psa_aee2010_r3')
+
+  def feed(self, **changes):
+    values = dict(gas=0, brake=0, t15=True, engine=3, speed=60, driver=0, eps=3, acc=4, fault=0)
+    values.update(changes)
+    for _ in range(8):
+      frames = [
+        self.packer.make_can_msg_safety('Dyn_CMM', 0, {'P002_Com_rAPP': values['gas']}),
+        make_msg(0, 0x348, dat=bytes([0, 0, 0, 0, 0, values['engine'], 0x40 if values['t15'] else 0, 0])),
+        self.packer.make_can_msg_safety('Dyn4_FRE', 0, {name: values['speed'] for name in (
+          'P263_VehV_VPsvValWhlFrtL', 'P264_VehV_VPsvValWhlFrtR', 'P265_VehV_VPsvValWhlBckL', 'P266_VehV_VPsvValWhlBckR')}),
+        self.packer.make_can_msg_safety('STEERING', 0, {'DRIVER_TORQUE': values['driver']}),
+        self.packer.make_can_msg_safety('IS_DAT_DIRA', 0, {'EPS_STATE_LKA': values['eps']}),
+        self.packer.make_can_msg_safety('Dat_BSI', 2, {'P013_MainBrake': values['brake']}),
+        self.packer.make_can_msg_safety('HS2_DAT_MDD_CMD_452', 1, {'RVV_ACC_ACTIVATION_REQ': 1}),
+        self.packer.make_can_msg_safety('HS2_DYN1_MDD_ETAT_2B6', 1, {'ACC_STATUS': values['acc']}),
+        self.packer.make_can_msg_safety('HS2_DYN_UCF_MDD_32D', 1, {'DEFAUT_ACC_FREIN': values['fault']}),
+      ]
+      for frame in frames:
+        self.safety.safety_rx_hook(frame)
+    self.assertTrue(self.safety.safety_config_valid())
+    self.safety.set_controls_allowed(True)
+
+  def command(self, torque=8, factor=100, status=4):
+    msg = create_p87_lka(bytes.fromhex('00000d0008000000'), torque, factor, status)
+    return make_msg(msg.src, msg.address, dat=msg.dat)
+
+  def test_valid_first_torque_step(self):
+    self.feed()
+    self.assertTrue(self.safety.safety_tx_hook(self.command()))
+
+  def test_neutral_only_without_authority(self):
+    self.assertTrue(self.safety.safety_tx_hook(self.command(0, 0, 2)))
+    self.assertFalse(self.safety.safety_tx_hook(self.command(0, 100, 3)))
+    self.assertFalse(self.safety.safety_tx_hook(self.command()))
+
+  def test_fault_pedals_speed_ignition_driver_and_eps_gates(self):
+    for change in ({'gas': 1}, {'brake': 1}, {'t15': False}, {'engine': 1}, {'speed': 51}, {'speed': 141},
+                   {'driver': 16}, {'driver': -16}, {'eps': 4}, {'acc': 15}, {'fault': 1}):
+      with self.subTest(change=change):
+        self.setUp()
+        self.feed(**change)
+        self.assertFalse(self.safety.safety_tx_hook(self.command()))
+
+  def test_torque_waits_for_eps_ack(self):
+    self.feed(eps=2)
+    self.assertTrue(self.safety.safety_tx_hook(self.command(0, 100, 3)))
+    self.assertFalse(self.safety.safety_tx_hook(self.command()))
+
+  def test_lost_or_invalid_feedback_blocks_torque(self):
+    self.feed()
+    self.safety.set_timer(350_001)
+    self.assertFalse(self.safety.safety_tx_hook(self.command()))
+    self.setUp()
+    self.feed()
+    frame = self.packer.make_can_msg_safety('STEERING', 0, {'DRIVER_TORQUE': 0})
+    frame[0].data[0] ^= 0x10
+    self.assertFalse(self.safety.safety_rx_hook(frame))
+    self.assertFalse(self.safety.safety_tx_hook(self.command()))
+
+  def test_rate_limit_is_enforced(self):
+    self.feed()
+    self.assertFalse(self.safety.safety_tx_hook(self.command(9)))
+
+  def test_absolute_limit_is_enforced(self):
+    self.feed()
+    msg = self.command(150)
+    msg[0].data[3] = 151 >> 3
+    msg[0].data[4] = (msg[0].data[4] & 0x1F) | ((151 & 7) << 5)
+    self.safety.set_desired_torque_last(150)
+    self.safety.set_rt_torque_last(150)
+    self.assertFalse(self.safety.safety_tx_hook(msg))
+
+  def test_realtime_limit_is_enforced(self):
+    self.feed()
+    self.safety.set_desired_torque_last(75)
+    self.safety.set_rt_torque_last(0)
+    self.assertFalse(self.safety.safety_tx_hook(self.command(76)))
+
+  def test_no_radar_acc_or_spoof_messages(self):
+    self.feed()
+    for bus, addr, length in ((1, 0x6B6, 8), (1, 0x452, 6), (1, 0x2B6, 8),
+                              (1, 0x2F6, 8), (1, 0x4F6, 5), (1, 0x796, 8), (0, 0x2F5, 7), (2, 0x495, 4)):
+      self.assertFalse(self.safety.safety_tx_hook(make_msg(bus, addr, length=length)))
+
+  def test_wrong_bus_length_angle_and_factor(self):
+    self.feed()
+    msg = self.command()
+    msg[0].bus = 2
+    self.assertFalse(self.safety.safety_tx_hook(msg))
+    msg = self.command()
+    msg[0].data_len_code = 7
+    self.assertFalse(self.safety.safety_tx_hook(msg))
+    for byte, value in ((5, 202), (6, 1)):
+      msg = self.command()
+      msg[0].data[byte] = value
+      self.assertFalse(self.safety.safety_tx_hook(msg))
+
+  def test_stock_forwarding_and_relay_failure(self):
+    self.assertEqual(self.safety.safety_fwd_hook(2, 0x3F2), -1)
+    self.assertEqual(self.safety.safety_fwd_hook(0, 0x208), 2)
+    self.assertEqual(self.safety.safety_fwd_hook(2, 0x412), 0)
+    self.safety.set_relay_malfunction(True)
+    self.assertFalse(self.safety.safety_tx_hook(self.command(0, 0, 2)))
+
+
+if __name__ == '__main__':
+  unittest.main()
