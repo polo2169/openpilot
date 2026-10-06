@@ -72,3 +72,7 @@ By becoming a sponsor, you will gain access to exclusive content, early access t
 Your continuous love and support are greatly appreciated! Enjoy 🥰
 
 <span>-</span> Jason, Founder of sunnypilot
+# Peugeot 5008 P87 experiment
+
+This branch adds CAN recognition and observation for Vyciokas's 2019 5008,
+with a separate opt-in lateral experiment. See [the P87 guide](docs/PEUGEOT_5008_P87.md).

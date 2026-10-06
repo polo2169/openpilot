@@ -20,3 +20,5 @@ if [ -z "$AGNOS_VERSION" ]; then
 fi
 
 export STAGING_ROOT="/data/safe_staging"
+
+source "$(dirname "${BASH_SOURCE[0]}")/psa_5008_env.sh"
