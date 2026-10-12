@@ -1,5 +1,5 @@
 {
-  "source_commit": "22ba3a8012e3898094a15be6c59ed91833c0f9df",
+  "source_commit": "71f50c5a378a662085efe43c00103daae2a0ef0c",
   "openpilot_base": "8624e793c3b79ecf38975fd2d1028b505f271b28",
   "pinned_dependencies": {
     "msgq_repo": "e7396e76dadbb49e374d4b664ff6bbb43a39bcb0",
@@ -1083,9 +1083,10 @@
   "omitted_optional_assets": [
     "openpilot/selfdrive/modeld/models/big_driving_supercombo.onnx"
   ],
-  "default_mode": "observation",
+  "default_mode": "lateral-test",
   "full_comma_build_verified": false,
   "vehicle_lateral_validated": false,
-  "targeted_tests_passed": 24,
-  "pedal_fix_date": "2026-10-12"
+  "targeted_tests_passed": 41,
+  "pedal_fix_date": "2026-10-12",
+  "rolling_identification_windows_passed": 197
 }

@@ -17,9 +17,12 @@ up to five windows of at most 2.5 seconds each. Recognition works at any speed,
 never forces the model and never engages. You can set off while initialization
 completes; assistance requires the normal model/vehicle checks to pass.
 
-The lateral experiment requires explicitly setting `PSA_5008_LATERAL_TEST=1`,
-rebuilding, flashing the matching Panda firmware, and restarting. Enable the
-openpilot toggle. The selected PSA safety parameter is `0x5008`. Only
+The updated installation branch selects `PSA_5008_LATERAL_TEST=1` for the
+requested lateral experiment, removing the observation-only dashcam setting.
+Install the update while parked, let the build and matching Panda firmware
+update complete, and restart. Enable the openpilot toggle. To return to
+observation, set the flag to `0` and restart; this selects NO_OUTPUT and
+FAKESEND again. The selected PSA safety parameter is `0x5008`. Only
 native-template `0x3F2` steering is permitted; stock ACC keeps longitudinal
 control. No radar programming, automatic resume, fake driver torque or
 hands-on-wheel messages are transmitted.
@@ -31,7 +34,8 @@ EPS acknowledgement before requesting torque.
 
 The road recordings contain 5,625,246 CAN frames over about 21 minutes, up to
 83.22 km/h. Offline checks replay CarInterface, compiled Panda pedal hooks,
-all 128,255 pedal frames and identification while moving. Panda was in
+all 128,255 pedal frames and 197 identifications while moving. All 41 targeted
+interface, ignition, fingerprint and compiled Panda tests pass. Panda was in
 NO_OUTPUT throughout, so these recordings do not validate physical steering,
 relay-open topology or lateral calibration.
 

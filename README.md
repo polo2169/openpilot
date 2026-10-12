@@ -1,31 +1,5 @@
 ![](https://user-images.githubusercontent.com/47793918/233812617-beab2e71-57b9-479e-8bff-c3931347ca40.png)
 
-## Peugeot 5008 P87: direct comma installation
-
-On the comma four, select **Custom Software** during setup and enter:
-
-```text
-installer.comma.ai/polo2169/peugeot-5008-p87-cristianku
-```
-
-This installation branch contains Cristianku's pinned sources, all seven
-dependencies, the 5008 fingerprint, Panda safety sources, UI assets, AGNOS
-updater, and the default driving/driver-monitoring models. There are no Git
-submodules or LFS downloads to resolve. The optional Chestnut GPU model is
-excluded; it is not needed for a standard comma four.
-
-The first boot builds the binaries and models on the device. Keep the device
-powered and connected to Wi-Fi until its AGNOS update and build finish.
-No manual patch, stub module or pyserial installation is required by this base.
-
-The default is **observation**: the vehicle can be identified and its signals
-decoded, with Panda `NO_OUTPUT` and no steering commands. The lateral experiment
-is present but disabled. Read [the P87 guide](docs/PEUGEOT_5008_P87.md) before
-enabling it. A full comma build and lateral validation on this 5008 are pending.
-
-Source provenance and asset hashes are in
-[the installation manifest](docs/PEUGEOT_5008_INSTALL_MANIFEST.json).
-
 ## 🌞 What is sunnypilot?
 [sunnypilot](https://github.com/sunnyhaibin/sunnypilot) is a fork of comma.ai's openpilot, an open source driver assistance system. sunnypilot offers the user a unique driving experience for over 300+ supported car makes and models with modified behaviors of driving assist engagements. sunnypilot complies with comma.ai's safety rules as accurately as possible.
 
@@ -100,5 +74,6 @@ Your continuous love and support are greatly appreciated! Enjoy 🥰
 <span>-</span> Jason, Founder of sunnypilot
 # Peugeot 5008 P87 experiment
 
-This branch adds CAN recognition and observation for Vyciokas's 2019 5008,
-with a separate opt-in lateral experiment. See [the P87 guide](docs/PEUGEOT_5008_P87.md).
+This branch includes corrected CAN recognition and a dedicated lateral test
+profile for Vyciokas's 2019 5008. The published test configuration enables
+that profile; physical vehicle validation remains required. See [the P87 guide](docs/PEUGEOT_5008_P87.md).
