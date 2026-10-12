@@ -35,6 +35,9 @@ class CarState(CarStateBase):
     self.p87_lka_template = None
     self.p87_lka_timestamp = 0
     self.p87_wheel_speeds_invalid = False
+    self.p87_pedal_packet_valid = False
+    self.p87_pedal_valid = False
+    self.p87_can_timestamp = 0
     # self.artiv_diag_response_updated = False
     # self.artiv_diag_response = {
     #   "ISO_TP_LENGTH": 0,
@@ -115,7 +118,12 @@ class CarState(CarStateBase):
 
     # gas
     if self.CP.carFingerprint == CAR.PSA_PEUGEOT_5008_P87:
-      ret.gasPressed = cp.vl['Dyn_CMM']['P002_Com_rAPP'] > 0
+      pedal = cp.vl['Dyn5_CMM']['P334_ACCPed_Position']
+      timestamp = cp.ts_nanos['Dyn5_CMM']['P334_ACCPed_Position']
+      self.p87_pedal_valid = self.p87_pedal_packet_valid and timestamp > 0 and 0 <= self.p87_can_timestamp - timestamp <= 250_000_000
+      # 0x208 is calculated engine demand, including stock ACC. A missing or
+      # malformed driver-pedal packet must never be treated as a released pedal.
+      ret.gasPressed = pedal > 0 or not self.p87_pedal_valid
     elif self.CP.carFingerprint in PSA_TORQUE_CARS:
       ret.gasPressed = cp.vl['Dyn5_CMM']['P334_ACCPed_Position'] > 0
     else:
@@ -212,10 +220,7 @@ class CarState(CarStateBase):
     ret.cruiseState.standstill = False # not available for CC-only
     ret.accFaulted = cp_adas.vl['HS2_DYN_UCF_MDD_32D']['ACC_ETAT_DECEL_OR_ESP_STATUS'] == 3
     if self.CP.carFingerprint == CAR.PSA_PEUGEOT_5008_P87:
-      # The 5008 has an 8-byte 0x228 variant, not the 3008's 5-byte Dyn5_CMM.
-      # Use the 0x208 pedal field, and preserve the stock ACC fault observed
-      # during cranking instead of claiming that cruise is always available.
-      ret.gasPressed = cp.vl['Dyn_CMM']['P002_Com_rAPP'] > 0
+      # Preserve stock ACC faults instead of claiming permanent availability.
       acc_status = int(cp_adas.vl['HS2_DYN1_MDD_ETAT_2B6']['ACC_STATUS'])
       regulation = int(cp_adas.vl['HS2_DAT_MDD_CMD_452']['LONGITUDINAL_REGULATION_TYPE'])
       ret.accFaulted |= acc_status == 15 or bool(cp_cam.vl['Dat_BSI']['P040_MainBrakeFault'])
@@ -265,7 +270,7 @@ class CarState(CarStateBase):
     if CP.carFingerprint == CAR.PSA_PEUGEOT_5008_P87:
       return {
         Bus.main: CANParser(DBC[CP.carFingerprint][Bus.pt], [
-          ('Dyn_CMM', 100), ('Dyn2_CMM', 50), ('Dyn4_FRE', 50),
+          ('Dyn_CMM', 100), ('Dyn5_CMM', 100), ('Dyn2_CMM', 50), ('Dyn4_FRE', 50),
           ('STEERING', 100), ('STEERING_ALT', 100), ('IS_DAT_DIRA', 10),
           ('Dyn_EasyMove', 50),
         ], 0),

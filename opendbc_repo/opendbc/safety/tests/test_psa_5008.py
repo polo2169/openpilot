@@ -12,14 +12,14 @@ class TestP87Safety(unittest.TestCase):
     self.assertEqual(self.safety.set_safety_hooks(CarParams.SafetyModel.psa, 0x5008), 0)
     self.safety.init_tests()
     self.safety.set_timer(100_000)
-    self.packer = CANPackerSafety('psa_aee2010_r3')
+    self.packer = CANPackerSafety('psa_p87_generated')
 
-  def feed(self, **changes):
-    values = dict(gas=0, brake=0, t15=True, engine=3, speed=60, driver=0, eps=3, acc=4, fault=0)
+  def feed(self, *, pedal=True, **changes):
+    values = dict(gas=0, engine_demand=0, brake=0, t15=True, engine=3, speed=60, driver=0, eps=3, acc=4, fault=0)
     values.update(changes)
     for _ in range(8):
       frames = [
-        self.packer.make_can_msg_safety('Dyn_CMM', 0, {'P002_Com_rAPP': values['gas']}),
+        self.packer.make_can_msg_safety('Dyn_CMM', 0, {'P002_Com_rAPP': values['engine_demand']}),
         make_msg(0, 0x348, dat=bytes([0, 0, 0, 0, 0, values['engine'], 0x40 if values['t15'] else 0, 0])),
         self.packer.make_can_msg_safety('Dyn4_FRE', 0, {name: values['speed'] for name in (
           'P263_VehV_VPsvValWhlFrtL', 'P264_VehV_VPsvValWhlFrtR', 'P265_VehV_VPsvValWhlBckL', 'P266_VehV_VPsvValWhlBckR')}),
@@ -30,9 +30,12 @@ class TestP87Safety(unittest.TestCase):
         self.packer.make_can_msg_safety('HS2_DYN1_MDD_ETAT_2B6', 1, {'ACC_STATUS': values['acc']}),
         self.packer.make_can_msg_safety('HS2_DYN_UCF_MDD_32D', 1, {'DEFAUT_ACC_FREIN': values['fault']}),
       ]
+      if pedal:
+        frames.insert(1, self.packer.make_can_msg_safety('Dyn5_CMM', 0, {'P334_ACCPed_Position': values['gas']}))
       for frame in frames:
         self.safety.safety_rx_hook(frame)
-    self.assertTrue(self.safety.safety_config_valid())
+    if pedal:
+      self.assertTrue(self.safety.safety_config_valid())
     self.safety.set_controls_allowed(True)
 
   def command(self, torque=8, factor=100, status=4):
@@ -42,6 +45,58 @@ class TestP87Safety(unittest.TestCase):
   def test_valid_first_torque_step(self):
     self.feed()
     self.assertTrue(self.safety.safety_tx_hook(self.command()))
+
+  def test_stock_acc_engine_demand_is_not_a_driver_override(self):
+    self.feed(engine_demand=19.5)
+    # Actual released-pedal frame captured while stock ACC demanded 19.5%.
+    self.assertTrue(self.safety.safety_rx_hook(make_msg(0, 0x228, dat=bytes.fromhex('4936004100c52032'))))
+    self.assertTrue(self.safety.safety_rx_hook(self.packer.make_can_msg_safety('Dyn_CMM', 0, {'P002_Com_rAPP': 19.5})))
+    self.assertTrue(self.safety.get_controls_allowed())
+    self.assertTrue(self.safety.safety_tx_hook(self.command()))
+
+  def test_driver_press_cuts_authority_and_release_does_not_reengage(self):
+    self.feed(engine_demand=0)
+    pedal = self.packer.make_can_msg_safety('Dyn5_CMM', 0, {'P334_ACCPed_Position': 0.5})
+    self.assertTrue(self.safety.safety_rx_hook(pedal))
+    self.assertFalse(self.safety.get_controls_allowed())
+    self.assertFalse(self.safety.safety_tx_hook(self.command()))
+    self.assertTrue(self.safety.safety_tx_hook(self.command(0, 0, 2)))
+    self.assertTrue(self.safety.safety_rx_hook(self.packer.make_can_msg_safety('Dyn5_CMM', 0, {'P334_ACCPed_Position': 0})))
+    self.assertFalse(self.safety.get_controls_allowed())
+
+  def test_bad_pedal_checksum_or_frozen_counter_blocks_torque(self):
+    self.feed()
+    pedal = self.packer.make_can_msg_safety('Dyn5_CMM', 0, {'P334_ACCPed_Position': 0})
+    pedal[0].data[3] ^= 1
+    self.assertFalse(self.safety.safety_rx_hook(pedal))
+    self.assertFalse(self.safety.get_controls_allowed())
+    self.assertFalse(self.safety.safety_tx_hook(self.command()))
+    self.setUp()
+    self.feed()
+    pedal = self.packer.make_can_msg_safety('Dyn5_CMM', 0, {'P334_ACCPed_Position': 0})
+    for _ in range(6):
+      self.safety.safety_rx_hook(pedal)
+    self.assertFalse(self.safety.safety_config_valid())
+    self.assertFalse(self.safety.safety_tx_hook(self.command()))
+
+  def test_missing_wrong_bus_or_wrong_length_pedal_cannot_grant_authority(self):
+    for bus, data in ((0, None), (2, bytes.fromhex('4936004100c52032')), (0, bytes.fromhex('4936004100'))):
+      with self.subTest(bus=bus, data=data):
+        self.setUp()
+        self.feed(pedal=False)
+        if data is not None:
+          self.safety.safety_rx_hook(make_msg(bus, 0x228, dat=data))
+        self.assertFalse(self.safety.safety_tx_hook(self.command()))
+
+  def test_only_pedal_expiring_blocks_torque(self):
+    self.feed()
+    self.safety.set_timer(350_001)
+    self.feed(pedal=False)  # All other prerequisites are fresh.
+    self.assertFalse(self.safety.safety_tx_hook(self.command()))
+
+  def test_reserved_pedal_values_inhibit_torque(self):
+    self.feed(gas=127.5)
+    self.assertFalse(self.safety.safety_tx_hook(self.command()))
 
   def test_neutral_only_without_authority(self):
     self.assertTrue(self.safety.safety_tx_hook(self.command(0, 0, 2)))

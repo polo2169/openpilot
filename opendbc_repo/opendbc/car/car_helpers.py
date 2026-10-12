@@ -41,16 +41,19 @@ interface_names = _get_interface_names()
 interfaces = load_interfaces(interface_names)
 
 
-def can_fingerprint(can_recv: CanRecvCallable) -> tuple[str | None, dict[int, dict]]:
+def can_fingerprint(can_recv: CanRecvCallable, *, timeout: float | None = None) -> tuple[str | None, dict[int, dict]]:
   finger = gen_empty_fingerprint()
   candidate_cars = {i: all_legacy_fingerprint_cars() for i in [0, 1]}  # attempt fingerprint on both bus 0 and 1
   frame = 0
   car_fingerprint = None
   done = False
+  deadline = None if timeout is None else time.monotonic() + timeout
 
   while not done:
     # can_recv(wait_for_one=True) may return zero or multiple packets, so we increment frame for each one we receive
     can_packets = can_recv(wait_for_one=True)
+    if deadline is not None and time.monotonic() >= deadline:
+      break
     for can_packet in can_packets:
       for can in can_packet:
         # The fingerprint dict is generated for all buses, this way the car interface
@@ -80,6 +83,18 @@ def can_fingerprint(can_recv: CanRecvCallable) -> tuple[str | None, dict[int, di
       frame += 1
 
   return car_fingerprint, finger
+
+
+def can_fingerprint_p87_startup(can_recv: CanRecvCallable) -> tuple[str | None, dict[int, dict]]:
+  # CAN may contain transient/incomplete messages while the engine starts.
+  # Retry fresh windows before settling on MOCK. Recognition uses the same
+  # ID/DLC checks at every speed; it never forces the P87 identity or engages.
+  for attempt in range(5):
+    candidate, finger = can_fingerprint(can_recv, timeout=2.5)
+    if candidate is not None:
+      return candidate, finger
+    carlog.warning("P87 startup CAN identification attempt %d/5 did not match", attempt + 1)
+  return None, finger
 
 
 # **** for use live only ****
@@ -129,7 +144,10 @@ def fingerprint(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_mu
   # CAN fingerprint
   # drain CAN socket so we get the latest messages
   can_recv()
-  car_fingerprint, finger = can_fingerprint(can_recv)
+  if os.environ.get('PSA_5008_ROLLING_START') == '1':
+    car_fingerprint, finger = can_fingerprint_p87_startup(can_recv)
+  else:
+    car_fingerprint, finger = can_fingerprint(can_recv)
 
   exact_match = True
   source = CarParams.FingerprintSource.can

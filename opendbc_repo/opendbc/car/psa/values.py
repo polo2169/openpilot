@@ -102,6 +102,7 @@ class CAR(Platforms):
     # P87 wheelbase: Peugeot's 2016 press pack. The exact engine/trim is unknown:
     # mass, steer ratio and tire stiffness are provisional, not a calibration.
     CarSpecs(mass=1520, wheelbase=2.84, steerRatio=17.69, tireStiffnessFactor=0.996044),
+    dbc_dict={Bus.pt: 'psa_p87_generated'},
   )
 
 

@@ -21,7 +21,7 @@ static safety_config p87_init(void) {
     {0x3F2, 0, 8, .check_relay = true},
   };
   static RxCheck rx[] = {
-    {.msg = {{0x208, 0, 8, 100, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, {0}, {0}}},
+    {.msg = {{0x228, 0, 8, 100, .max_counter = 15, .ignore_quality_flag = true}, {0}, {0}}},
     {.msg = {{0x348, 0, 8, 50, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, {0}, {0}}},
     {.msg = {{0x30D, 0, 8, 50, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, {0}, {0}}},
     {.msg = {{0x2F5, 0, 7, 100, .max_counter = 15, .ignore_quality_flag = true}, {0}, {0}}},
@@ -36,7 +36,9 @@ static safety_config p87_init(void) {
 
 static void p87_rx(const CANPacket_t *msg) {
   if (msg->bus == 0U) {
-    if (msg->addr == 0x208U) { gas_pressed = msg->data[3] != 0U; }
+    // Driver pedal, not 0x208 calculated demand (positive during stock ACC).
+    // Reserved/out-of-range values also inhibit steering.
+    if (msg->addr == 0x228U) { gas_pressed = msg->data[2] != 0U; }
     if (msg->addr == 0x348U) {
       p87_t15 = (msg->data[6] & 0x40U) != 0U;
       p87_engine = msg->data[5] & 0xFU;

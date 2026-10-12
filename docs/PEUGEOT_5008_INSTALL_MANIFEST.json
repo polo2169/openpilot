@@ -1,9 +1,9 @@
 {
-  "source_commit": "c40851347a8dc0afaa94f175193bd5724343669a",
+  "source_commit": "22ba3a8012e3898094a15be6c59ed91833c0f9df",
   "openpilot_base": "8624e793c3b79ecf38975fd2d1028b505f271b28",
   "pinned_dependencies": {
     "msgq_repo": "e7396e76dadbb49e374d4b664ff6bbb43a39bcb0",
-    "opendbc_repo": "7a2c33083f461114a7be40fa5a164407ce6642a0",
+    "opendbc_repo": "30d2e2b25ae8246ad534e1887aaa79a8aa099737",
     "openpilot/sunnypilot/neural_network_data": "56aebacb53bf9515ddb2b3ebf07e4d89fea846e7",
     "panda": "ea5a83a956d61c7540c1a13a8d76f08c24675d1b",
     "rednose_repo": "28d4a7f69e80e1c3e0d24ca0733d7daeaeade3d0",
@@ -1086,5 +1086,6 @@
   "default_mode": "observation",
   "full_comma_build_verified": false,
   "vehicle_lateral_validated": false,
-  "targeted_tests_passed": 24
+  "targeted_tests_passed": 24,
+  "pedal_fix_date": "2026-10-12"
 }

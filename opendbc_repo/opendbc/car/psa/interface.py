@@ -14,14 +14,19 @@ class CarInterface(CarInterfaceBase):
   def update(self, can_packets):
     if self.CP.carFingerprint == CAR.PSA_PEUGEOT_5008_P87:
       for timestamp, frames in can_packets:
+        self.CS.p87_can_timestamp = timestamp
         for address, data, bus in frames:
+          if address == 0x228 and bus == 0:
+            # This parser version does not enforce DBC message lengths. Check
+            # the P87 variant explicitly before accepting its pedal value.
+            self.CS.p87_pedal_packet_valid = len(data) == 8 and data[2] <= 200 and sum((b >> 4) + (b & 15) for b in data) % 16 == 3
           # The stock camera side must keep producing its native template.
           if address == 0x3F2 and bus == 2 and len(data) == 8:
             self.CS.p87_lka_template = bytes(data)
             self.CS.p87_lka_timestamp = timestamp
     ret, ret_sp = super().update(can_packets)
     if self.CP.carFingerprint == CAR.PSA_PEUGEOT_5008_P87:
-      ret.canValid &= not self.CS.p87_wheel_speeds_invalid
+      ret.canValid &= not self.CS.p87_wheel_speeds_invalid and self.CS.p87_pedal_valid
     return ret, ret_sp
 
   @staticmethod

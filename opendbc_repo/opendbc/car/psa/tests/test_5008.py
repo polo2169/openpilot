@@ -3,7 +3,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from opendbc.car import structs
+from opendbc.car import structs, Bus
+from opendbc.can.packer import CANPacker
 from opendbc.car.psa.interface import CarInterface
 from opendbc.car.psa.psacan import create_p87_lka
 from opendbc.car.psa.values import CAR, PSA_5008_LATERAL_PARAM
@@ -55,6 +56,64 @@ class TestP87Interface(unittest.TestCase):
     self.assertFalse(cp.dashcamOnly)
     self.assertEqual(cp.safetyConfigs[0].safetyModel, structs.CarParams.SafetyModel.psa)
     self.assertEqual(cp.safetyConfigs[0].safetyParam, 0)
+    ci = CarInterface(cp, CarInterface.get_non_essential_params_sp(cp, CAR.PSA_PEUGEOT_3008))
+    self.assertEqual(ci.can_parsers[Bus.main].dbc.addr_to_msg[0x228].size, 5)
+
+  def test_recorded_released_pedal_with_positive_acc_engine_demand(self):
+    ci = self.interface()
+    packer = CANPacker('psa_p87_generated')
+    ret, _ = ci.update([(1_000_000_000, [
+      (0x228, bytes.fromhex('4936004100c52032'), 0),
+      packer.make_can_msg('Dyn_CMM', 0, {'P002_Com_rAPP': 19.5}),
+    ])])
+    self.assertTrue(ci.CS.p87_pedal_valid)
+    self.assertFalse(ret.gasPressed)
+
+  def test_real_driver_pedal_is_detected_without_engine_demand(self):
+    ci = self.interface()
+    packer = CANPacker('psa_p87_generated')
+    ret, _ = ci.update([(1_000_000_000, [packer.make_can_msg('Dyn5_CMM', 0, {'P334_ACCPed_Position': 0.5})])])
+    self.assertTrue(ci.CS.p87_pedal_valid)
+    self.assertTrue(ret.gasPressed)
+    self.assertEqual(ci.can_parsers[Bus.main].vl['Dyn5_CMM']['P334_ACCPed_Position'], 0.5)
+
+  def test_frozen_pedal_counter_invalidates_can(self):
+    ci = self.interface()
+    packer = CANPacker('psa_p87_generated')
+    pedal = packer.make_can_msg('Dyn5_CMM', 0, {'P334_ACCPed_Position': 0})
+    for i in range(7):
+      ret, _ = ci.update([(1_000_000_000 + i * 10_000_000, [pedal])])
+    self.assertFalse(ret.canValid)
+    self.assertGreaterEqual(ci.can_parsers[Bus.main].message_states[0x228].counter_fail, 5)
+
+  def test_missing_malformed_or_stale_pedal_is_never_released(self):
+    for bus, data in ((0, b'\x00' * 8), (0, bytes.fromhex('4936004100')), (2, bytes.fromhex('4936004100c52032'))):
+      with self.subTest(bus=bus, data=data):
+        ci = self.interface()
+        ret, _ = ci.update([(1_000_000_000, [(0x228, data, bus)])])
+        self.assertFalse(ci.CS.p87_pedal_valid)
+        self.assertTrue(ret.gasPressed)
+        self.assertFalse(ret.canValid)
+    ci = self.interface()
+    ci.update([(1_000_000_000, [(0x228, bytes.fromhex('4936004100c52032'), 0)])])
+    ret, _ = ci.update([(1_250_000_001, [])])
+    self.assertFalse(ci.CS.p87_pedal_valid)
+    self.assertTrue(ret.gasPressed)
+    self.assertFalse(ret.canValid)
+
+  def test_corruption_and_reserved_value_invalidate_a_previous_release(self):
+    for reserved in (False, True):
+      ci = self.interface()
+      packer = CANPacker('psa_p87_generated')
+      ci.update([(1_000_000_000, [packer.make_can_msg('Dyn5_CMM', 0, {'P334_ACCPed_Position': 0})])])
+      msg = packer.make_can_msg('Dyn5_CMM', 0, {'P334_ACCPed_Position': 127.5 if reserved else 0})
+      data = bytearray(msg[1])
+      if not reserved:
+        data[3] ^= 1
+      ret, _ = ci.update([(1_010_000_000, [(0x228, bytes(data), 0)])])
+      self.assertFalse(ci.CS.p87_pedal_valid)
+      self.assertTrue(ret.gasPressed)
+      self.assertFalse(ret.canValid)
 
   def test_unavailable_wheel_speeds_are_not_displayed_as_655_kph(self):
     for data in (b'\xff' * 8, b'\xff\xfe' * 4):

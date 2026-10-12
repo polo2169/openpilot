@@ -1,44 +1,43 @@
 # Peugeot 5008 P87
 
-For a fresh comma four installation, choose **Custom Software** and enter
-`installer.comma.ai/polo2169/peugeot-5008-p87-cristianku`.
-This branch bundles all sources and the default ONNX models, with no external
-Git submodules or LFS pointers. The first boot compiles them on the device.
-The optional Chestnut GPU model is not part of this standard-device package.
+The original installed release uses observation/dashcam mode:
+`PSA_5008_LATERAL_TEST=0`, `NO_OUTPUT`, `FAKESEND=1`. Pilot Assist cannot
+activate comma steering while that configuration is selected.
 
-This branch adds the 2019 5008 P87 specimen recorded by Vyciokas to
-Cristianku's stable `psa-torque-sunny` base. It identifies the vehicle using
-90 observed CAN identifiers, reads the common PSA signals with P87 adaptations,
-and uses terminal 15 for ignition. Firmware interrogation is skipped.
+The 12 October correction reads the driver's pedal from eight-byte `0x228`
+on bus 0, byte 2 scaled by 0.5%. `0x208` is calculated engine demand, which
+can be positive during stock ACC with the driver pedal released. Python and
+the dedicated Panda safety profile use the same pedal source. A generated
+P87 DBC preserves the five-byte definition on other PSA cars. Length,
+checksum, counter, range and freshness are checked; invalid feedback blocks
+steering. Driver pedal release alone never reengages Panda.
 
-The default configuration in `psa_5008_env.sh` sets `PSA_5008_LATERAL_TEST=0`.
-The interface is a recognized PSA dashcam with `NO_OUTPUT`; `FAKESEND=1` also
-blocks application transmissions. This first stage verifies the CAN data and
-vehicle faults without issuing commands.
+`PSA_5008_ROLLING_START=1` retries CAN identification after a transient failure,
+up to five windows of at most 2.5 seconds each. Recognition works at any speed,
+never forces the model and never engages. You can set off while initialization
+completes; assistance requires the normal model/vehicle checks to pass.
 
-The optional lateral experiment requires changing `PSA_5008_LATERAL_TEST` to
-`1`, rebuilding, flashing the matching Panda firmware, and restarting. This
-selects PSA safety parameter `0x5008`. Only native-template LKA commands on
-`0x3F2` are authorized; there is no radar programming, longitudinal control,
-automatic ACC resume, fake driver torque or hands-on-wheel message.
+The lateral experiment requires explicitly setting `PSA_5008_LATERAL_TEST=1`,
+rebuilding, flashing the matching Panda firmware, and restarting. Enable the
+openpilot toggle. The selected PSA safety parameter is `0x5008`. Only
+native-template `0x3F2` steering is permitted; stock ACC keeps longitudinal
+control. No radar programming, automatic resume, fake driver torque or
+hands-on-wheel messages are transmitted.
 
-Panda independently enforces stock ACC engagement, fresh valid feedback,
-ignition, absence of ACC/brake faults, pedal inhibition, a 52–140 km/h speed
-envelope, driver intervention, and torque/rate bounds. The host requires a
-fresh native bus-2 LKA template and EPS acknowledgement before sending torque.
+Panda enforces stock ACC engagement, ignition, feedback within 250 ms,
+absence of ACC/brake faults, released pedals, 52–140 km/h, driver intervention
+and torque/rate limits. The host requires a fresh camera LKA template and
+EPS acknowledgement before requesting torque.
 
-The wheelbase is 2.84 m, from
-[Peugeot's P87 press pack](https://www.media.stellantis.com/em-en/peugeot/press/press-pack-resume-the-all-new-peugeot-5008-a-whole-new-dimension-for-suvs).
-Mass, steering ratio, tire stiffness, torque tuning and actuator delay remain
-provisional. Confirm the engine/trim and validate the harness with its relay
-open, steering sign, EPS response and driver takeovers on a closed course.
+The road recordings contain 5,625,246 CAN frames over about 21 minutes, up to
+83.22 km/h. Offline checks replay CarInterface, compiled Panda pedal hooks,
+all 128,255 pedal frames and identification while moving. Panda was in
+NO_OUTPUT throughout, so these recordings do not validate physical steering,
+relay-open topology or lateral calibration.
 
-Offline validation: 358 fingerprint replay windows passed, 24 targeted
-interface/safety/ignition tests passed, and observation generated zero CAN
-commands even with an active lateral request. The supplied captures were
-stationary. A full comma build, firmware flash and vehicle lateral validation
-remain to be performed.
-
-The source logs contain a native ACC fault just after cranking alongside a
-Panda voltage dip to 6.26 V. Preserve ABS/ESP and radar/ACC DTCs and diagnose
-that fault before evaluating the lateral experiment.
+The owner reports replacing the failing battery and no faults since; no ACC
+or brake fault appears in the new recordings. Wheelbase is 2.84 m; mass,
+steering ratio, tire stiffness and lateral tuning remain provisional.
+Confirm engine/trim and validate steering sign, EPS response and driver
+interventions on a closed course. A full comma build, firmware flash and
+physical lateral validation remain to be performed.
