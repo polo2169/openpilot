@@ -74,5 +74,6 @@ Your continuous love and support are greatly appreciated! Enjoy 🥰
 <span>-</span> Jason, Founder of sunnypilot
 # Peugeot 5008 P87 experiment
 
-This branch adds CAN recognition and observation for Vyciokas's 2019 5008,
-with a separate opt-in lateral experiment. See [the P87 guide](docs/PEUGEOT_5008_P87.md).
+This branch includes corrected CAN recognition and a dedicated lateral test
+profile for Vyciokas's 2019 5008. The published test configuration enables
+that profile; physical vehicle validation remains required. See [the P87 guide](docs/PEUGEOT_5008_P87.md).
