@@ -45,3 +45,15 @@ steering ratio, tire stiffness and lateral tuning remain provisional.
 Confirm engine/trim and validate steering sign, EPS response and driver
 interventions on a closed course. A full comma build, firmware flash and
 physical lateral validation remain to be performed.
+
+Reproduce the road-log replay from the repository root (uncompressed recordings
+with their recorder JSON sidecars):
+
+```sh
+PSA_5008_LATERAL_TEST=0 DEBUG=0 python3 openpilot/tools/replay_5008_pedal_fix.py \
+  --opendbc-root opendbc_repo --openpilot-root . \
+  --captures /path/to/psa-diagnostics --output /tmp/p87-replay.json
+```
+
+This tool replays recorded data and the native safety test library without
+connecting to hardware or transmitting CAN.

@@ -1,5 +1,5 @@
 {
-  "source_commit": "71f50c5a378a662085efe43c00103daae2a0ef0c",
+  "source_commit": "49d24442cab9cd971628bb38f32eae5317827680",
   "openpilot_base": "8624e793c3b79ecf38975fd2d1028b505f271b28",
   "pinned_dependencies": {
     "msgq_repo": "e7396e76dadbb49e374d4b664ff6bbb43a39bcb0",
