@@ -6,6 +6,7 @@ from opendbc.car.interfaces import MAX_CTRL_SPEED
 from opendbc.car.toyota.values import ToyotaFlags
 
 from openpilot.selfdrive.selfdrived.events import Events
+from openpilot.selfdrive.selfdrived.stock_cruise import independent_stock_cruise
 
 ButtonType = structs.CarState.ButtonEvent.Type
 GearShifter = structs.CarState.GearShifter
@@ -27,6 +28,12 @@ class CarEvents:
       return Events()
 
     events = self.create_common_events(CS, CS_prev)
+
+    # P87 Panda cuts authority on the driver pedal regardless of the optional
+    # generic accelerator setting. Match it immediately on the host, including
+    # an enable request while the pedal is already held.
+    if independent_stock_cruise(self.CP) and CS.gasPressed:
+      events.add(EventName.pedalPressed)
 
     if self.CP.brand == 'chrysler':
       # Low speed steer alert hysteresis logic
