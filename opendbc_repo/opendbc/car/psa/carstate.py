@@ -38,6 +38,7 @@ class CarState(CarStateBase):
     self.p87_pedal_packet_valid = False
     self.p87_pedal_valid = False
     self.p87_can_timestamp = 0
+    self.p87_cruise_fault_latched = False
     # self.artiv_diag_response_updated = False
     # self.artiv_diag_response = {
     #   "ISO_TP_LENGTH": 0,
@@ -223,9 +224,19 @@ class CarState(CarStateBase):
       # Preserve stock ACC faults instead of claiming permanent availability.
       acc_status = int(cp_adas.vl['HS2_DYN1_MDD_ETAT_2B6']['ACC_STATUS'])
       regulation = int(cp_adas.vl['HS2_DAT_MDD_CMD_452']['LONGITUDINAL_REGULATION_TYPE'])
-      ret.accFaulted |= acc_status == 15 or bool(cp_cam.vl['Dat_BSI']['P040_MainBrakeFault'])
+      ret.accFaulted |= (acc_status == 15 or bool(cp_cam.vl['Dat_BSI']['P040_MainBrakeFault']) or
+                        bool(cp_adas.vl['HS2_DYN_UCF_MDD_32D']['DEFAUT_ACC_FREIN']))
       ret.cruiseState.available = acc_status in (3, 4, 5, 6, 7) and not ret.accFaulted
-      ret.cruiseState.enabled &= ret.cruiseState.available
+      # 0x452 is the driver's activation request, including suspended ACC.
+      # Match Panda's effective cruise state using the independent 0x2B6 status.
+      active_request = ret.cruiseState.enabled and acc_status in (4, 6)
+      if not active_request:
+        self.p87_cruise_fault_latched = False
+      elif ret.accFaulted:
+        self.p87_cruise_fault_latched = True
+      ret.cruiseState.enabled = active_request and ret.cruiseState.available
+      ret.blockPcmEnable = ret.gasPressed or ret.brakePressed or self.p87_cruise_fault_latched
+      ret.carNotReady = not cp.vl['Dyn2_CMM']['P372_T15_st'] or cp.vl['Dyn2_CMM']['P134_Com_stEng'] != 3
       ret.cruiseState.nonAdaptive = regulation != 3
       ret.cruiseState.standstill = bool(cp_adas.vl['HS2_DYN_UCF_MDD_32D']['VEHICLE_STANDSTILL'])
       if cruise_speed_kph >= 255:

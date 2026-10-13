@@ -49,6 +49,7 @@ class TestP87Interface(unittest.TestCase):
     self.assertFalse(ci.CP.dashcamOnly)
     self.assertEqual(ci.CP.safetyConfigs[0].safetyParam, PSA_5008_LATERAL_PARAM)
     self.assertFalse(ci.CP.openpilotLongitudinalControl)
+    self.assertTrue(ci.CP.pcmCruise)
     self.assertFalse(ci.CP_SP.intelligentCruiseButtonManagementAvailable)
 
   def test_existing_3008_profile_is_unchanged(self):
@@ -76,6 +77,49 @@ class TestP87Interface(unittest.TestCase):
     self.assertTrue(ci.CS.p87_pedal_valid)
     self.assertTrue(ret.gasPressed)
     self.assertEqual(ci.can_parsers[Bus.main].vl['Dyn5_CMM']['P334_ACCPed_Position'], 0.5)
+
+  def test_cruise_armed_active_suspended_and_faulted(self):
+    ci = self.interface(True)
+    packer = CANPacker('psa_p87_generated')
+    for i, acc in enumerate((3, 4, 5, 6, 7, 2, 15)):
+      with self.subTest(acc=acc):
+        ret, _ = ci.update([(1_000_000_000 + i * 10_000_000, [
+          packer.make_can_msg('Dyn5_CMM', 0, {'P334_ACCPed_Position': 0}),
+          packer.make_can_msg('Dyn2_CMM', 0, {'P372_T15_st': 1, 'P134_Com_stEng': 3}),
+          packer.make_can_msg('HS2_DAT_MDD_CMD_452', 1, {'RVV_ACC_ACTIVATION_REQ': 1, 'LONGITUDINAL_REGULATION_TYPE': 3}),
+          packer.make_can_msg('HS2_DYN1_MDD_ETAT_2B6', 1, {'ACC_STATUS': acc}),
+        ])])
+        self.assertEqual(ret.cruiseState.enabled, acc in (4, 6))
+        self.assertEqual(ret.cruiseState.available, acc in (3, 4, 5, 6, 7))
+        self.assertEqual(ret.accFaulted, acc == 15)
+        self.assertFalse(ret.blockPcmEnable)
+        self.assertFalse(ret.carNotReady)
+
+  def test_pedals_block_enable_and_brake_fault_is_preserved(self):
+    ci = self.interface(True)
+    packer = CANPacker('psa_p87_generated')
+    ret, _ = ci.update([(1_000_000_000, [
+      packer.make_can_msg('Dyn5_CMM', 0, {'P334_ACCPed_Position': 5}),
+      packer.make_can_msg('HS2_DYN_UCF_MDD_32D', 1, {'DEFAUT_ACC_FREIN': 1}),
+      packer.make_can_msg('HS2_DYN1_MDD_ETAT_2B6', 1, {'ACC_STATUS': 4}),
+      packer.make_can_msg('HS2_DAT_MDD_CMD_452', 1, {'RVV_ACC_ACTIVATION_REQ': 1}),
+    ])])
+    self.assertTrue(ret.blockPcmEnable)
+    self.assertTrue(ret.accFaulted)
+    self.assertFalse(ret.cruiseState.enabled)
+    self.assertTrue(ret.carNotReady)
+
+  def test_fault_clearing_does_not_create_a_new_host_enable(self):
+    ci = self.interface(True)
+    packer = CANPacker('psa_p87_generated')
+    for i, (request, fault, blocked) in enumerate(((1, 0, False), (1, 1, True), (1, 0, True), (0, 0, False), (1, 0, False))):
+      ret, _ = ci.update([(1_000_000_000 + i * 10_000_000, [
+        packer.make_can_msg('Dyn5_CMM', 0, {'P334_ACCPed_Position': 0}),
+        packer.make_can_msg('HS2_DAT_MDD_CMD_452', 1, {'RVV_ACC_ACTIVATION_REQ': request}),
+        packer.make_can_msg('HS2_DYN1_MDD_ETAT_2B6', 1, {'ACC_STATUS': 4}),
+        packer.make_can_msg('HS2_DYN_UCF_MDD_32D', 1, {'DEFAUT_ACC_FREIN': fault}),
+      ])])
+      self.assertEqual(ret.blockPcmEnable, blocked)
 
   def test_frozen_pedal_counter_invalidates_can(self):
     ci = self.interface()

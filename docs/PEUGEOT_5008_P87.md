@@ -1,59 +1,87 @@
-# Peugeot 5008 P87
+# Peugeot 5008 P87 — ACC / Panda correction, 13 October 2026
 
-The original installed release uses observation/dashcam mode:
-`PSA_5008_LATERAL_TEST=0`, `NO_OUTPUT`, `FAKESEND=1`. Pilot Assist cannot
-activate comma steering while that configuration is selected.
+The previous release `fc68d36` selected the lateral test profile correctly, but
+Panda could consume the activation-request edge on 0x452 before the active
+ACC status arrived on 0x2B6. The later status update never granted authority.
+An offline reproduction using the published safety code rejects steering;
+the old safety tests hid this by forcing controlsAllowed=true.
 
-The 12 October correction reads the driver's pedal from eight-byte `0x228`
-on bus 0, byte 2 scaled by 0.5%. `0x208` is calculated engine demand, which
-can be positive during stock ACC with the driver pedal released. Python and
-the dedicated Panda safety profile use the same pedal source. A generated
-P87 DBC preserves the five-byte definition on other PSA cars. Length,
-checksum, counter, range and freshness are checked; invalid feedback blocks
-steering. Driver pedal release alone never reengages Panda.
+## Changes
 
-`PSA_5008_ROLLING_START=1` retries CAN identification after a transient failure,
-up to five windows of at most 2.5 seconds each. Recognition works at any speed,
-never forces the model and never engages. You can set off while initialization
-completes; assistance requires the normal model/vehicle checks to pass.
+Panda waits for all nine valid, fresh RX prerequisites before interpreting
+initial engagement. It tracks activation request AND actual ACC active status
+(4 or 6), reevaluating when either message changes. Python uses the same state.
+Armed/suspended ACC (3/5/7) is available but not engaged. Fault, ignition, body
+and pedal gates still inhibit controls; recovering a fault or releasing a pedal
+alone does not re-arm a still-active ACC session. A new cruise off/on or actual
+inactive-to-active transition is required, with the pedals released.
 
-The updated installation branch selects `PSA_5008_LATERAL_TEST=1` for the
-requested lateral experiment, removing the observation-only dashcam setting.
-Install the update while parked, let the build and matching Panda firmware
-update complete, and restart. Enable the openpilot toggle. To return to
-observation, set the flag to `0` and restart; this selects NO_OUTPUT and
-FAKESEND again. The selected PSA safety parameter is `0x5008`. Only
-native-template `0x3F2` steering is permitted; stock ACC keeps longitudinal
-control. No radar programming, automatic resume, fake driver torque or
-hands-on-wheel messages are transmitted.
+The driver pedal cuts openpilot immediately even if the optional generic
+accelerator-disengagement setting is disabled. Enable requests while pressing
+a pedal are blocked. Clearing an ACC fault without a new ACC transition also
+blocks an unsolicited host engagement.
 
-Panda enforces stock ACC engagement, ignition, feedback within 250 ms,
-absence of ACC/brake faults, released pedals, 52–140 km/h, driver intervention
-and torque/rate limits. The host requires a fresh camera LKA template and
-EPS acknowledgement before requesting torque.
+This P87 controller emits only lateral LKA and does not cancel or control
+Peugeot ACC. The stock-cruise mismatch alert now respects that ownership on
+this P87 lateral-only port. Other ports retain their existing check. The
+controlsMismatch check, its 200-frame threshold, RX checks and torque limits
+are unchanged. CarParams remains openpilotLongitudinalControl=false and
+pcmCruise=true; Panda uses psa, safetyParam=0x5008 in the opt-in lateral mode.
 
-The road recordings contain 5,625,246 CAN frames over about 21 minutes, up to
-83.22 km/h. Offline checks replay CarInterface, compiled Panda pedal hooks,
-all 128,255 pedal frames and 197 identifications while moving. All 41 targeted
-interface, ignition, fingerprint and compiled Panda tests pass. Panda was in
-NO_OUTPUT throughout, so these recordings do not validate physical steering,
-relay-open topology or lateral calibration.
+## Validation and limits
 
-The owner reports replacing the failing battery and no faults since; no ACC
-or brake fault appears in the new recordings. Wheelbase is 2.84 m; mass,
-steering ratio, tire stiffness and lateral tuning remain provisional.
-Confirm engine/trim and validate steering sign, EPS response and driver
-interventions on a closed course. A full comma build, firmware flash and
-physical lateral validation remain to be performed.
+63 targeted/interface/native-safety/car-state-machine tests pass. They no
+longer force Panda authority, and cover both message orders, startup feedback,
+ACC suspension/resume, pedal/fault recovery, the 2-second window and steering
+gates. The existing legacy PSA suite still has the same 10 known failures.
 
-Reproduce the road-log replay from the repository root (uncompressed recordings
-with their recorder JSON sidecars):
+The twelve previously supplied captures contain 5,625,246 CAN frames. Full
+native RX replay accepts all 564,527 checked prerequisite packets. The old
+version grants zero authority. The corrected replay grants about 22.98 seconds
+in one valid session. Car events and the host engagement state machine agree
+with Panda for all 2,298 enabled updates: zero enabled/authority disagreements,
+zero cruise mismatches and zero unsafe admissions. The other stock-ACC intervals
+remain unengaged after driver overrides; stock ACC is allowed to continue.
+This replay excludes model/driver-monitoring/MADS state and physical actuation.
+
+Vyciokas's latest trial on fc68d36 is available only as his written report;
+its route and /data/mismatch_capture.log have not been supplied here. These
+checks do not prove the EPS accepts steering commands on his car.
+
+## Update
+
+Use the same installation branch:
+https://installer.comma.ai/polo2169/peugeot-5008-p87-cristianku
+
+Install while parked, allow compilation and the matching Panda firmware update
+to finish, then reboot. Keep the normal firmware-signature check enabled.
+Verify PSA safetyParam 0x5008 (20488), openpilotLongitudinalControl=false,
+pcmCruise=true and safetyRxChecksInvalid=false.
+
+For a local patch installation, copy this package outside /data/openpilot:
 
 ```sh
-PSA_5008_LATERAL_TEST=0 DEBUG=0 python3 openpilot/tools/replay_5008_pedal_fix.py \
-  --opendbc-root opendbc_repo --openpilot-root . \
-  --captures /path/to/psa-diagnostics --output /tmp/p87-replay.json
+python3 /data/5008-cristianku/install.py --openpilot-root /data/openpilot --mode lateral-test --check-only
+python3 /data/5008-cristianku/install.py --openpilot-root /data/openpilot --mode lateral-test --build
 ```
 
-This tool replays recorded data and the native safety test library without
-connecting to hardware or transmitting CAN.
+The installer accepts stable Cristianku with original/T15 opendbc, original P87
+source/flattened releases, and the 12 October source 49d2444 / release fc68d36
+with opendbc 30d2e2b. It checks BOTH patches before changing files and saves
+both patches, old configuration and documentation. Unknown/dirty revisions are
+rejected. Without an explicit --mode, local patch installation selects observe.
+
+Lateral TX remains restricted to 0x3F2 bus 0, 52–140 km/h, valid camera template
+and EPS acknowledgement. Recognition while moving is unchanged. ACC can be
+active below 52 km/h while steering TX stays inhibited. The 50 km/h setting
+for Paul's 308 is separate and is not applied to this 5008.
+
+The first physical validation should be on a closed course. Record CarParams,
+pandaStates, carState, carControl and CAN during enable/suspend/resume. Expected:
+controlsAllowed=true on a valid ACC edge, no 2-second controlsMismatch kill;
+zero steering command below 52 km/h and until EPS acknowledges the handshake.
+
+To roll back a local patch installation, stop openpilot, reverse the saved
+openpilot-controls.patch at the root and opendbc.patch in opendbc_repo (or use
+--directory=opendbc_repo for a flattened tree), restore the saved configuration
+and documentation, and rebuild the previous sources before restarting.

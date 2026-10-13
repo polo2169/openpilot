@@ -6,6 +6,7 @@
 
 static bool psa_5008_profile = false;
 static bool p87_t15, p87_fault, p87_body_ok, p87_acc_ok;
+static bool p87_cruise_requested, p87_rx_initialized;
 static int p87_engine, p87_eps, p87_speed, p87_driver;
 
 static safety_config p87_init(void) {
@@ -13,6 +14,8 @@ static safety_config p87_init(void) {
   p87_fault = true;
   p87_body_ok = false;
   p87_acc_ok = false;
+  p87_cruise_requested = false;
+  p87_rx_initialized = false;
   p87_engine = 0;
   p87_eps = 0;
   p87_speed = 0;
@@ -32,6 +35,18 @@ static safety_config p87_init(void) {
     {.msg = {{0x32D, 1, 8, 50, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, {0}, {0}}},
   };
   return BUILD_SAFETY_CFG(rx, tx);
+}
+
+static bool p87_feedback_valid(void) {
+  bool valid = true;
+  const uint32_t now = microsecond_timer_get();
+  for (int i = 0; i < current_safety_config.rx_checks_len; i++) {
+    const RxCheck *rx = &current_safety_config.rx_checks[i];
+    valid = valid && rx->status.msg_seen && rx->status.valid_checksum && rx->status.valid_quality_flag &&
+      (rx->status.wrong_counters < MAX_WRONG_COUNTERS) &&
+      (safety_get_ts_elapsed(now, rx->status.last_timestamp) <= 250000U);
+  }
+  return valid;
 }
 
 static void p87_rx(const CANPacket_t *msg) {
@@ -61,7 +76,7 @@ static void p87_rx(const CANPacket_t *msg) {
     p87_body_ok = ((msg->data[0] & 5U) == 0U) && ((msg->data[6] & 0x18U) == 0U);
   }
   if (msg->bus == 1U) {
-    if (msg->addr == 0x452U) { pcm_cruise_check((msg->data[2] & 0x80U) != 0U); }
+    if (msg->addr == 0x452U) { p87_cruise_requested = (msg->data[2] & 0x80U) != 0U; }
     if (msg->addr == 0x2B6U) {
       int acc = msg->data[3] & 0xFU;
       p87_acc_ok = (acc == 4) || (acc == 6);
@@ -70,7 +85,16 @@ static void p87_rx(const CANPacket_t *msg) {
       p87_fault = ((msg->data[2] >> 3) & 3U) == 3U || (msg->data[3] & 0x80U) != 0U;
     }
   }
-  if (p87_fault || !p87_acc_ok || !p87_t15 || !p87_body_ok || gas_pressed || brake_pressed) {
+  const bool feedback_valid = p87_feedback_valid();
+  // Do not consume the initial ACC edge before the independent CAN messages
+  // have arrived. Afterwards track the actual active state, not just its request.
+  p87_rx_initialized = p87_rx_initialized || feedback_valid;
+  if (p87_rx_initialized) {
+    pcm_cruise_check(p87_cruise_requested && p87_acc_ok);
+  }
+  // Fault/pedal recovery alone must not re-arm a still-active ACC session.
+  // Speed and EPS acknowledgement remain separate gates on steering TX.
+  if (!feedback_valid || p87_fault || !p87_acc_ok || !p87_t15 || (p87_engine != 3) || !p87_body_ok || gas_pressed || brake_pressed) {
     controls_allowed = false;
   }
 }
@@ -79,14 +103,7 @@ static bool p87_ready(void) {
   bool ready = controls_allowed && p87_t15 && (p87_engine == 3) && !p87_fault && p87_acc_ok && p87_body_ok &&
     !gas_pressed && !brake_pressed && (p87_speed >= 5200) && (p87_speed <= 14000) &&
     (p87_eps >= 1) && (p87_eps <= 3) && (SAFETY_ABS(p87_driver) <= 45);
-  const uint32_t now = microsecond_timer_get();
-  for (int i = 0; i < current_safety_config.rx_checks_len; i++) {
-    const RxCheck *rx = &current_safety_config.rx_checks[i];
-    ready = ready && rx->status.msg_seen && rx->status.valid_checksum && rx->status.valid_quality_flag &&
-      (rx->status.wrong_counters < MAX_WRONG_COUNTERS) &&
-      (safety_get_ts_elapsed(now, rx->status.last_timestamp) <= 250000U);
-  }
-  return ready;
+  return ready && p87_feedback_valid();
 }
 
 static bool p87_tx(const CANPacket_t *msg) {

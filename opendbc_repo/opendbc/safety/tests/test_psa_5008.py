@@ -15,7 +15,7 @@ class TestP87Safety(unittest.TestCase):
     self.packer = CANPackerSafety('psa_p87_generated')
 
   def feed(self, *, pedal=True, **changes):
-    values = dict(gas=0, engine_demand=0, brake=0, t15=True, engine=3, speed=60, driver=0, eps=3, acc=4, fault=0)
+    values = dict(gas=0, engine_demand=0, brake=0, t15=True, engine=3, speed=60, driver=0, eps=3, acc=4, fault=0, request=1)
     values.update(changes)
     for _ in range(8):
       frames = [
@@ -26,7 +26,7 @@ class TestP87Safety(unittest.TestCase):
         self.packer.make_can_msg_safety('STEERING', 0, {'DRIVER_TORQUE': values['driver']}),
         self.packer.make_can_msg_safety('IS_DAT_DIRA', 0, {'EPS_STATE_LKA': values['eps']}),
         self.packer.make_can_msg_safety('Dat_BSI', 2, {'P013_MainBrake': values['brake']}),
-        self.packer.make_can_msg_safety('HS2_DAT_MDD_CMD_452', 1, {'RVV_ACC_ACTIVATION_REQ': 1}),
+        self.packer.make_can_msg_safety('HS2_DAT_MDD_CMD_452', 1, {'RVV_ACC_ACTIVATION_REQ': values['request']}),
         self.packer.make_can_msg_safety('HS2_DYN1_MDD_ETAT_2B6', 1, {'ACC_STATUS': values['acc']}),
         self.packer.make_can_msg_safety('HS2_DYN_UCF_MDD_32D', 1, {'DEFAUT_ACC_FREIN': values['fault']}),
       ]
@@ -36,7 +36,6 @@ class TestP87Safety(unittest.TestCase):
         self.safety.safety_rx_hook(frame)
     if pedal:
       self.assertTrue(self.safety.safety_config_valid())
-    self.safety.set_controls_allowed(True)
 
   def command(self, torque=8, factor=100, status=4):
     msg = create_p87_lka(bytes.fromhex('00000d0008000000'), torque, factor, status)
@@ -44,7 +43,84 @@ class TestP87Safety(unittest.TestCase):
 
   def test_valid_first_torque_step(self):
     self.feed()
+    self.assertTrue(self.safety.get_controls_allowed())
     self.assertTrue(self.safety.safety_tx_hook(self.command()))
+
+  def test_request_before_active_status_does_not_lose_engagement(self):
+    self.feed(acc=3)
+    self.assertFalse(self.safety.get_controls_allowed())
+    self.feed(acc=4)
+    self.assertTrue(self.safety.get_controls_allowed())
+    self.assertTrue(self.safety.safety_tx_hook(self.command()))
+
+  def test_active_before_request_and_initial_feedback_arrival(self):
+    self.feed(request=0)
+    self.assertFalse(self.safety.get_controls_allowed())
+    self.feed(request=1)
+    self.assertTrue(self.safety.get_controls_allowed())
+    self.assertTrue(self.safety.safety_tx_hook(self.command()))
+
+  def test_stock_acc_suspend_and_resume_follow_actual_status(self):
+    self.feed()
+    for acc in (3, 5, 7, 2, 15):
+      with self.subTest(acc=acc):
+        self.feed(acc=acc)
+        self.assertFalse(self.safety.get_controls_allowed())
+        self.assertFalse(self.safety.safety_tx_hook(self.command()))
+        self.feed(acc=4)
+        self.assertTrue(self.safety.get_controls_allowed())
+
+  def test_fault_recovery_alone_does_not_rearm_active_cruise(self):
+    self.feed()
+    self.feed(fault=1)
+    self.assertFalse(self.safety.get_controls_allowed())
+    self.feed(fault=0)
+    self.assertFalse(self.safety.get_controls_allowed())
+    self.feed(request=0)
+    self.feed(request=1)
+    self.assertTrue(self.safety.get_controls_allowed())
+
+  def test_throttle_held_on_acc_resume_needs_another_cruise_edge(self):
+    self.feed(acc=5, gas=10)
+    self.feed(acc=4, gas=10)
+    self.assertFalse(self.safety.get_controls_allowed())
+    self.feed(acc=4, gas=0)
+    self.assertFalse(self.safety.get_controls_allowed())
+    self.feed(request=0)
+    self.feed(request=1)
+    self.assertTrue(self.safety.get_controls_allowed())
+
+  def test_low_speed_acc_authority_never_authorizes_lateral_torque(self):
+    self.feed(speed=30, eps=0)
+    self.assertTrue(self.safety.get_controls_allowed())
+    self.assertFalse(self.safety.safety_tx_hook(self.command()))
+    self.assertFalse(self.safety.safety_tx_hook(self.command(0, 100, 3)))
+    self.assertTrue(self.safety.safety_tx_hook(self.command(0, 0, 2)))
+    self.feed(speed=60, eps=2)
+    self.assertTrue(self.safety.safety_tx_hook(self.command(0, 100, 3)))
+    self.feed(eps=3)
+    self.assertTrue(self.safety.safety_tx_hook(self.command()))
+
+  def test_engagement_persists_over_the_two_second_mismatch_window(self):
+    self.feed()
+    for frame in range(1, 301):
+      self.safety.set_timer(100_000 + frame * 10_000)
+      self.feed()
+      self.assertTrue(self.safety.get_controls_allowed())
+
+  def test_brake_recovery_and_bad_checksum_do_not_rearm(self):
+    self.feed()
+    self.feed(brake=1)
+    self.feed(brake=0)
+    self.assertFalse(self.safety.get_controls_allowed())
+    self.feed(request=0)
+    self.feed(request=1)
+    self.assertTrue(self.safety.get_controls_allowed())
+    msg = self.packer.make_can_msg_safety('Dyn5_CMM', 0, {'P334_ACCPed_Position': 0})
+    msg[0].data[3] ^= 1
+    self.assertFalse(self.safety.safety_rx_hook(msg))
+    self.feed()
+    self.assertFalse(self.safety.get_controls_allowed())
 
   def test_stock_acc_engine_demand_is_not_a_driver_override(self):
     self.feed(engine_demand=19.5)
@@ -86,6 +162,7 @@ class TestP87Safety(unittest.TestCase):
         self.feed(pedal=False)
         if data is not None:
           self.safety.safety_rx_hook(make_msg(bus, 0x228, dat=data))
+        self.assertFalse(self.safety.get_controls_allowed())
         self.assertFalse(self.safety.safety_tx_hook(self.command()))
 
   def test_only_pedal_expiring_blocks_torque(self):

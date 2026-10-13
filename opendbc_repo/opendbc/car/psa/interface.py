@@ -65,6 +65,7 @@ class CarInterface(CarInterfaceBase):
       lateral_test = os.environ.get("PSA_5008_LATERAL_TEST") == "1"
       ret.dashcamOnly = not lateral_test
       ret.openpilotLongitudinalControl = False
+      ret.pcmCruise = True
       ret.autoResumeSng = False
       ret.safetyConfigs = [get_safety_config(
         structs.CarParams.SafetyModel.psa if lateral_test else structs.CarParams.SafetyModel.noOutput,
