@@ -156,11 +156,12 @@ def main():
     else:
       entry['complete']=True
   segments=[int(d.name.rsplit('--',1)[1]) for d in directories]
-  report['missing_segments'] = sorted(set(range(min(segments),max(segments)+1))-set(segments))
+  report['missing_segments'] = sorted(set(range(0,max(segments)+1))-set(segments))
   report['complete_rlog_coverage'] = (not report['errors'] and not report['missing_segments']
     and all(f['complete'] and f['file'].startswith('rlog') for f in report['files']))
   report['p87_fingerprint_confirmed'] = (bool(report['car_params']) and
     all(cp['carFingerprint'] == 'PSA_PEUGEOT_5008_P87' for cp in report['car_params']))
+  report['coverage_scope']='Local segments 0 through highest available; route end is not independently verified.'
   report['note']='Counts distinguish requested torque, controller output and raw CAN. None is a measured steering response.'
   args.output.parent.mkdir(parents=True,exist_ok=True)
   args.output.write_text(json.dumps(report,indent=2)+'\n')
