@@ -13,7 +13,7 @@ from opendbc.car.psa.psacan import (
   create_disable_radar,
   create_p87_lka,
 )
-from opendbc.car.psa.values import CarControllerParams, CAR, LKAS_LIMITS, PSA_ADAS_BUS
+from opendbc.car.psa.values import CarControllerParams, CAR, LKAS_LIMITS, PSA_ADAS_BUS, PSA_5008_MIN_STEER_KPH
 
 try:
   import openpilot.cereal.messaging as messaging
@@ -27,6 +27,9 @@ except ImportError:
 
 import random
 import math
+import json
+
+from opendbc.car.carlog import carlog
 
 SteerControlType = structs.CarParams.SteerControlType
 
@@ -72,6 +75,9 @@ class CarController(CarControllerBase):
     self.apply_torque_scaled_last = 0
     self.apply_can_torque_last = 0  # raw CAN torque logged to steeringAngleDeg (debug); init so it always exists
     self.apply_torque_factor = 0
+    self.p87_lateral_status = {}
+    self.p87_diag_last_key = None
+    self.p87_diag_last_ns = 0
     self.apply_torque = 0
     self.status = 2
     self.takeover_req = 0
@@ -458,18 +464,30 @@ class CarController(CarControllerBase):
     return new_actuators, can_sends
 
   def _update_p87(self, CC, CS, now_nanos):
-    # A dedicated lateral experiment: no radar sessions, ACC resume, artificial
-    # driver torque or hands-on-wheel messages from the legacy 3008 controller.
+    # Lateral-only path. No radar sessions, ACC resume, brake/torque requests
+    # or artificial driver/hands messages from the legacy PSA controller.
     can_sends = []
-    template_fresh = CS.p87_lka_template is not None and 0 <= now_nanos - CS.p87_lka_timestamp <= 150_000_000
-    allowed = CC.latActive and CS.out.canValid and not CS.out.canTimeout and \
-      CS.out.cruiseState.enabled and not CS.out.accFaulted and \
-      not CS.out.brakePressed and not CS.out.gasPressed and not CS.out.doorOpen and \
-      not CS.out.seatbeltUnlatched and not CS.out.parkingBrake and \
-      LKAS_LIMITS.DISABLE_SPEED <= CS.speed_kph <= 140 and template_fresh
+    template_age = now_nanos - CS.p87_lka_timestamp
+    eps_age = now_nanos - CS.p87_eps_timestamp
+    template_fresh = CS.p87_lka_template is not None and 0 <= template_age <= 150_000_000
+    eps_fresh = CS.p87_eps_timestamp > 0 and 0 <= eps_age <= 250_000_000
+    finite = all(math.isfinite(v) for v in (CS.speed_kph, CS.out.steeringTorque, CC.actuators.torque))
+    reason = ('lateral_not_requested' if not CC.latActive else 'nonfinite_input' if not finite
+      else 'can_invalid' if not CS.out.canValid else 'can_timeout' if CS.out.canTimeout
+      else 'stock_acc_fault' if CS.out.accFaulted else 'driver_brake' if CS.out.brakePressed
+      else 'driver_accelerator' if CS.out.gasPressed else 'door_open' if CS.out.doorOpen
+      else 'seatbelt_unlatched' if CS.out.seatbeltUnlatched else 'parking_brake' if CS.out.parkingBrake
+      else 'stock_acc_inactive' if not CS.out.cruiseState.enabled
+      else 'below_lateral_speed' if CS.speed_kph < PSA_5008_MIN_STEER_KPH
+      else 'above_lateral_speed' if CS.speed_kph > 140.
+      else 'camera_template_stale' if not template_fresh else 'eps_feedback_stale' if not eps_fresh
+      else 'driver_torque_override' if abs(CS.out.steeringTorque) > 45.
+      else 'eps_not_authorized' if CS.eps_state_lka == 0
+      else 'eps_fault_or_unknown' if CS.eps_state_lka not in (1, 2, 3) else None)
+    allowed = reason is None
     if self.frame % self.params.STEER_STEP == 0:
       factor, status, torque = 0, 2, 0
-      if allowed and CS.eps_state_lka in (1, 2, 3):
+      if allowed:
         factor = 100
         status = 4 if CS.eps_active else 3
         if CS.eps_active:
@@ -479,11 +497,35 @@ class CarController(CarControllerBase):
             self.params, self.params.STEER_MAX,
           )
       self.apply_torque_scaled_last = torque
+      self.status = status
+      self.apply_torque_factor = factor
       if template_fresh:
         can_sends.append(create_p87_lka(CS.p87_lka_template, torque, factor, status))
     elif not allowed:
       self.apply_torque_scaled_last = 0
 
+    phase = reason or ('waiting_for_eps_ack' if not CS.eps_active else 'active')
+    self.p87_lateral_status = {
+      'mono_ns': now_nanos, 'phase': phase, 'lateral_requested': bool(CC.latActive),
+      'openpilot_enabled': bool(CC.enabled), 'speed_kph': CS.speed_kph if finite else None,
+      'eps_state': CS.eps_state_lka, 'eps_age_ms': eps_age / 1e6 if CS.p87_eps_timestamp else None,
+      'camera_template_age_ms': template_age / 1e6 if CS.p87_lka_template is not None else None,
+      'requested_torque': float(CC.actuators.torque) if finite else None,
+      'output_torque_raw': self.apply_torque_scaled_last, 'lka_status': self.status,
+      'lka_factor': self.apply_torque_factor, 'stock_acc_active': bool(CS.out.cruiseState.enabled),
+      'stock_longitudinal': getattr(CS, 'p87_stock_longitudinal', {}),
+      'driver_brake': bool(CS.out.brakePressed), 'driver_accelerator': bool(CS.out.gasPressed),
+      'driver_torque_raw': float(CS.out.steeringTorque) if finite else None,
+      'standstill_from_wheels': bool(CS.speed_kph <= .1),
+      'openpilot_longitudinal': False, 'auto_resume': False,
+    }
+    key = (phase, CS.eps_state_lka, bool(CC.enabled), bool(CS.out.cruiseState.enabled),
+      bool(CS.speed_kph <= .1), bool(CS.out.brakePressed), bool(CS.out.gasPressed),
+      tuple(self.p87_lateral_status['stock_longitudinal'].get(k) for k in
+        ('acc_status', 'decel_request', 'standstill_dbc', 'drive_away_request', 'cockpit_go_request')))
+    if key != self.p87_diag_last_key or now_nanos - self.p87_diag_last_ns >= 1_000_000_000:
+      carlog.info('psa_p87_status ' + json.dumps(self.p87_lateral_status, separators=(',', ':'), allow_nan=False))
+      self.p87_diag_last_key, self.p87_diag_last_ns = key, now_nanos
     new_actuators = CC.actuators.as_builder()
     new_actuators.torque = self.apply_torque_scaled_last / self.params.STEER_MAX
     new_actuators.torqueOutputCan = self.apply_torque_scaled_last

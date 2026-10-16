@@ -15,6 +15,12 @@ from opendbc.sunnypilot.car.tesla.values import MadsScreenButtonType, TeslaFlags
 MADS_NO_ACC_MAIN_BUTTON = ("rivian", "tesla")
 
 
+def supports_independent_lateral(CP: structs.CarParams) -> bool:
+  # The experimental P87 safety profile grants steering only with real stock
+  # ACC. It has no separate controls_allowed_lateral / MADS authorization.
+  return not (CP.brand == 'psa' and CP.carFingerprint == 'PSA_PEUGEOT_5008_P87')
+
+
 class MadsSteeringModeOnBrake:
   REMAIN_ACTIVE = 0
   PAUSE = 1
@@ -41,7 +47,7 @@ def read_steering_mode_param(CP: structs.CarParams, CP_SP: structs.CarParamsSP, 
 
 
 def set_alternative_experience(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: Params):
-  enabled = params.get_bool("Mads")
+  enabled = supports_independent_lateral(CP) and params.get_bool("Mads")
   steering_mode = read_steering_mode_param(CP, CP_SP, params)
 
   if enabled:

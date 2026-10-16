@@ -22,7 +22,7 @@ class TestP87Interface(unittest.TestCase):
     state.canValid = True
     state.cruiseState.enabled = True
     cs = SimpleNamespace(out=state, speed_kph=60, eps_active=True, eps_state_lka=3,
-                         p87_lka_template=bytes.fromhex('a1450d0008000003'), p87_lka_timestamp=1_000_000_000)
+                         p87_lka_template=bytes.fromhex('a1450d0008000003'), p87_lka_timestamp=1_000_000_000, p87_eps_timestamp=1_000_000_000)
     for key, value in changes.items():
       if hasattr(state, key):
         setattr(state, key, value)
@@ -50,6 +50,8 @@ class TestP87Interface(unittest.TestCase):
     self.assertEqual(ci.CP.safetyConfigs[0].safetyParam, PSA_5008_LATERAL_PARAM)
     self.assertFalse(ci.CP.openpilotLongitudinalControl)
     self.assertTrue(ci.CP.pcmCruise)
+    self.assertAlmostEqual(ci.CP.minSteerSpeed * 3.6, 30., places=4)
+    self.assertFalse(ci.CP.autoResumeSng)
     self.assertFalse(ci.CP_SP.intelligentCruiseButtonManagementAvailable)
 
   def test_existing_3008_profile_is_unchanged(self):
@@ -184,7 +186,7 @@ class TestP87Interface(unittest.TestCase):
   def test_fault_pedals_and_speed_inhibit_torque(self):
     for changes in ({'accFaulted': True}, {'brakePressed': True}, {'gasPressed': True}, {'canValid': False},
                     {'canTimeout': True}, {'doorOpen': True}, {'seatbeltUnlatched': True},
-                    {'parkingBrake': True}, {'speed_kph': 51}, {'speed_kph': 141}):
+                    {'parkingBrake': True}, {'speed_kph': 29.99}, {'speed_kph': 141}):
       with self.subTest(changes=changes):
         ci = self.interface(True)
         act, sends = ci.CC.update(self.control(), structs.CarControlSP(), self.state(**changes), 1_000_000_000)
@@ -197,6 +199,42 @@ class TestP87Interface(unittest.TestCase):
     self.assertEqual(act.torqueOutputCan, 0)
     self.assertEqual((sends[0].dat[4] >> 2) & 7, 3)
 
+  def test_thirty_kph_still_needs_real_fresh_eps_authorization(self):
+    for speed in (30., 40., 51.99):
+      for eps in (0, 1, 2, 3, 4, 7):
+        with self.subTest(speed=speed, eps=eps):
+          ci = self.interface(True)
+          act, sends = ci.CC.update(self.control(), structs.CarControlSP(),
+            self.state(speed_kph=speed, eps_state_lka=eps, eps_active=eps==3), 1_000_000_000)
+          self.assertEqual(act.torqueOutputCan != 0, eps==3)
+          status=(sends[0].dat[4] >> 2)&7
+          self.assertEqual(status, 4 if eps==3 else 3 if eps in (1,2) else 2)
+          if eps==0:self.assertEqual(ci.CC.p87_lateral_status['phase'], 'eps_not_authorized')
+
+  def test_frozen_or_missing_eps_cannot_authorize_a_command(self):
+    for stamp in (0, 749_999_999, 1_000_000_001):
+      ci=self.interface(True)
+      _, sends=ci.CC.update(self.control(), structs.CarControlSP(),
+        self.state(p87_eps_timestamp=stamp), 1_000_000_000)
+      self.assertEqual(ci.CC.p87_lateral_status['phase'], 'eps_feedback_stale')
+      self.assertEqual(sends[0].dat[3:7], bytes.fromhex('00080000'))
+
+  def test_diagnostics_distinguish_upstream_inactivity_from_eps_refusal(self):
+    ci=self.interface(True);cc=structs.CarControl()
+    ci.CC.update(cc.as_reader(), structs.CarControlSP(), self.state(),1_000_000_000)
+    self.assertEqual(ci.CC.p87_lateral_status['phase'],'lateral_not_requested')
+    ci.CC.frame=5
+    ci.CC.update(self.control(), structs.CarControlSP(), self.state(eps_state_lka=0, eps_active=False),1_000_000_000)
+    self.assertEqual(ci.CC.p87_lateral_status['phase'],'eps_not_authorized')
+
+  def test_longitudinal_flags_never_send_acc_brake_or_resume(self):
+    ci=self.interface(True);cc=structs.CarControl(latActive=True,longActive=True,enabled=True)
+    cc.actuators.torque=.2;cc.actuators.accel=1.;cc.cruiseControl.resume=True
+    _,sends=ci.CC.update(cc.as_reader(),structs.CarControlSP(),self.state(speed_kph=30.),1_000_000_000)
+    self.assertEqual([(f.address,f.src) for f in sends],[(0x3F2,0)])
+    self.assertFalse(ci.CC.p87_lateral_status['openpilot_longitudinal'])
+    self.assertFalse(ci.CC.p87_lateral_status['auto_resume'])
+
   def test_template_preserves_unknown_bits_and_never_requests_angle(self):
     template = bytes.fromhex('a1450d33ff0133ff')
     msg = create_p87_lka(template, -8, 100, 4)
@@ -205,6 +243,21 @@ class TestP87Interface(unittest.TestCase):
     self.assertEqual(msg.dat[5] & 1, template[5] & 1)
     self.assertEqual(msg.dat[6], 0)
     self.assertEqual(msg.dat[7], template[7] & 3)
+
+class TestP87LowSpeedNativeIntegration(unittest.TestCase):
+  def test_prepare_ack_torque_and_eps_withdrawal_at_thirty(self):
+    from opendbc.safety.tests import test_psa_5008 as native
+    helper=TestP87Interface()
+    ci=helper.interface(True)
+    safety=native.TestP87Safety();safety.setUp()
+    cc=helper.control()
+    for frame,eps in ((0,2),(5,3),(10,0)):
+      ci.CC.frame=frame;safety.feed(speed=30.,eps=eps)
+      act,sends=ci.CC.update(cc,structs.CarControlSP(),
+        helper.state(speed_kph=30.,eps_state_lka=eps,eps_active=eps==3),1_000_000_000)
+      self.assertEqual(act.torqueOutputCan != 0, eps==3)
+      self.assertEqual(len(sends),1)
+      self.assertTrue(safety.safety.safety_tx_hook(native.make_msg(sends[0].src,sends[0].address,dat=sends[0].dat)))
 
 
 if __name__ == '__main__':

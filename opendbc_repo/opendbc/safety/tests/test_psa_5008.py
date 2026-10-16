@@ -181,12 +181,22 @@ class TestP87Safety(unittest.TestCase):
     self.assertFalse(self.safety.safety_tx_hook(self.command()))
 
   def test_fault_pedals_speed_ignition_driver_and_eps_gates(self):
-    for change in ({'gas': 1}, {'brake': 1}, {'t15': False}, {'engine': 1}, {'speed': 51}, {'speed': 141},
+    for change in ({'gas': 1}, {'brake': 1}, {'t15': False}, {'engine': 1}, {'speed': 29.99}, {'speed': 141},
                    {'driver': 16}, {'driver': -16}, {'eps': 4}, {'acc': 15}, {'fault': 1}):
       with self.subTest(change=change):
         self.setUp()
         self.feed(**change)
         self.assertFalse(self.safety.safety_tx_hook(self.command()))
+
+  def test_exact_thirty_kph_boundary_and_real_eps_permission(self):
+    for speed in (29.99,30.,40.,51.99,52.,140.,140.01):
+      for eps in (0,1,2,3,4,7):
+        with self.subTest(speed=speed,eps=eps):
+          self.setUp();self.feed(speed=speed,eps=eps)
+          self.assertEqual(bool(self.safety.safety_tx_hook(self.command(0,100,3))),
+            30. <= speed <= 140. and eps in (1,2,3))
+          self.assertEqual(bool(self.safety.safety_tx_hook(self.command())),
+            30. <= speed <= 140. and eps==3)
 
   def test_torque_waits_for_eps_ack(self):
     self.feed(eps=2)

@@ -9,6 +9,7 @@ Ecu = CarParams.Ecu
 
 PSA_ADAS_BUS = 1
 PSA_5008_LATERAL_PARAM = 0x5008
+PSA_5008_MIN_STEER_KPH = 30.0  # Software eligibility; real EPS authorization remains required.
 
 
 class CarControllerParams:

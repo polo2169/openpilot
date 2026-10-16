@@ -34,6 +34,8 @@ class CarState(CarStateBase):
     self.cruise_enabled_prev = False
     self.p87_lka_template = None
     self.p87_lka_timestamp = 0
+    self.p87_eps_timestamp = 0
+    self.p87_stock_longitudinal = {}
     self.p87_wheel_speeds_invalid = False
     self.p87_pedal_packet_valid = False
     self.p87_pedal_valid = False
@@ -237,6 +239,19 @@ class CarState(CarStateBase):
       ret.cruiseState.enabled = active_request and ret.cruiseState.available
       ret.blockPcmEnable = ret.gasPressed or ret.brakePressed or self.p87_cruise_fault_latched
       ret.carNotReady = not cp.vl['Dyn2_CMM']['P372_T15_st'] or cp.vl['Dyn2_CMM']['P134_Com_stEng'] != 3
+      # Observation only: record native stock-ACC brake/torque/hold/GO fields.
+      # Their layout alone does not validate P87 longitudinal actuation.
+      self.p87_stock_longitudinal = {
+        'acc_status': acc_status,
+        'decel_mps2_dbc': cp_adas.vl['HS2_DYN1_MDD_ETAT_2B6']['MDD_DESIRED_DECELERATION'],
+        'decel_request': cp_adas.vl['HS2_DYN1_MDD_ETAT_2B6']['MDD_DECEL_CONTROL_REQ'],
+        'decel_type': cp_adas.vl['HS2_DYN1_MDD_ETAT_2B6']['MDD_DECEL_TYPE'],
+        'wheel_torque_dbc': cp_adas.vl['HS2_DYN1_MDD_ETAT_2B6']['GMP_WHEEL_TORQUE'],
+        'wheel_torque_request': cp_adas.vl['HS2_DYN1_MDD_ETAT_2B6']['WHEEL_TORQUE_REQUEST'],
+        'standstill_dbc': cp_adas.vl['HS2_DYN_UCF_MDD_32D']['VEHICLE_STANDSTILL'],
+        'drive_away_request': cp_adas.vl['HS2_DYN_MDD_ETAT_2F6']['DRIVE_AWAY_REQUEST'],
+        'cockpit_go_request': cp_adas.vl['HS2_DAT_MDD_CMD_452']['COCKPIT_GO_ACC_REQUEST'],
+      }
       ret.cruiseState.nonAdaptive = regulation != 3
       ret.cruiseState.standstill = bool(cp_adas.vl['HS2_DYN_UCF_MDD_32D']['VEHICLE_STANDSTILL'])
       if cruise_speed_kph >= 255:

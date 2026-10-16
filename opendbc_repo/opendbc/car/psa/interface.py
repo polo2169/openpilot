@@ -5,7 +5,7 @@ from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.interfaces import CarInterfaceBase
 from opendbc.car.psa.carcontroller import CarController
 from opendbc.car.psa.carstate import CarState
-from opendbc.car.psa.values import CAR, LKAS_LIMITS, PSA_TORQUE_CARS, PSA_5008_LATERAL_PARAM
+from opendbc.car.psa.values import CAR, LKAS_LIMITS, PSA_TORQUE_CARS, PSA_5008_LATERAL_PARAM, PSA_5008_MIN_STEER_KPH
 
 class CarInterface(CarInterfaceBase):
   CarState = CarState
@@ -20,6 +20,8 @@ class CarInterface(CarInterfaceBase):
             # This parser version does not enforce DBC message lengths. Check
             # the P87 variant explicitly before accepting its pedal value.
             self.CS.p87_pedal_packet_valid = len(data) == 8 and data[2] <= 200 and sum((b >> 4) + (b & 15) for b in data) % 16 == 3
+          if address == 0x495 and bus == 0 and len(data) == 4:
+            self.CS.p87_eps_timestamp = timestamp
           # The stock camera side must keep producing its native template.
           if address == 0x3F2 and bus == 2 and len(data) == 8:
             self.CS.p87_lka_template = bytes(data)
@@ -67,6 +69,7 @@ class CarInterface(CarInterfaceBase):
       ret.openpilotLongitudinalControl = False
       ret.pcmCruise = True
       ret.autoResumeSng = False
+      ret.minSteerSpeed = PSA_5008_MIN_STEER_KPH * CV.KPH_TO_MS
       ret.safetyConfigs = [get_safety_config(
         structs.CarParams.SafetyModel.psa if lateral_test else structs.CarParams.SafetyModel.noOutput,
         PSA_5008_LATERAL_PARAM if lateral_test else 0,

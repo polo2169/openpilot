@@ -3,6 +3,7 @@
 // Separate opt-in profile for a P87 lateral experiment. The 5008 observation
 // interface uses NO_OUTPUT. No legacy radar/ACC/spoofing TX is authorized here.
 #define PSA_5008_LATERAL_PARAM 0x5008U
+#define P87_MIN_STEER_SPEED 3000  // centi-km/h; real EPS permission and all RX gates still required
 
 static bool psa_5008_profile = false;
 static bool p87_t15, p87_fault, p87_body_ok, p87_acc_ok;
@@ -101,7 +102,7 @@ static void p87_rx(const CANPacket_t *msg) {
 
 static bool p87_ready(void) {
   bool ready = controls_allowed && p87_t15 && (p87_engine == 3) && !p87_fault && p87_acc_ok && p87_body_ok &&
-    !gas_pressed && !brake_pressed && (p87_speed >= 5200) && (p87_speed <= 14000) &&
+    !gas_pressed && !brake_pressed && (p87_speed >= P87_MIN_STEER_SPEED) && (p87_speed <= 14000) &&
     (p87_eps >= 1) && (p87_eps <= 3) && (SAFETY_ABS(p87_driver) <= 45);
   return ready && p87_feedback_valid();
 }

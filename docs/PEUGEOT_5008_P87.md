@@ -1,87 +1,100 @@
-# Peugeot 5008 P87 — ACC / Panda correction, 13 October 2026
+# Peugeot 5008 P87 — ACC-coupled lateral experiment, 16 October 2026
 
-The previous release `fc68d36` selected the lateral test profile correctly, but
-Panda could consume the activation-request edge on 0x452 before the active
-ACC status arrived on 0x2B6. The later status update never granted authority.
-An offline reproduction using the published safety code rejects steering;
-the old safety tests hid this by forcing controlsAllowed=true.
+This update addresses independent MADS activity while driving manually and
+adds diagnostics for the steering request, EPS response and stock ACC.
+Recognition while moving and the 13 October ACC/Panda engagement fix remain.
 
-## Changes
+## Engagement and MADS
 
-Panda waits for all nine valid, fresh RX prerequisites before interpreting
-initial engagement. It tracks activation request AND actual ACC active status
-(4 or 6), reevaluating when either message changes. Python uses the same state.
-Armed/suspended ACC (3/5/7) is available but not engaged. Fault, ignition, body
-and pedal gates still inhibit controls; recovering a fault or releasing a pedal
-alone does not re-arm a still-active ACC session. A new cruise off/on or actual
-inactive-to-active transition is required, with the pedals released.
+The experimental P87 safety policy grants steering only with real Peugeot
+ACC activity. It has no separate controlsAllowedLateral authorization.
+Sunnypilot MADS could nevertheless start independently on cruise-main activity,
+causing Controls Mismatch: Lateral alerts while openpilot was disengaged.
+MADS availability and its alternativeExperience flags are now disabled only
+for P87. User preferences and other cars are unchanged. Ordinary ACC-coupled
+engagement, the main controlsMismatch check, its 200-frame threshold and all
+fault/pedal/RX checks remain. No Panda permission is forced.
 
-The driver pedal cuts openpilot immediately even if the optional generic
-accelerator-disengagement setting is disabled. Enable requests while pressing
-a pedal are blocked. Clearing an ACC fault without a new ACC transition also
-blocks an unsolicited host engagement.
+With MADS unavailable, controlsd uses the normal selfdriveState.active value.
+The integration tests cover this path through the real controller and compiled
+native safety, including EPS preparation, acknowledgement and withdrawal.
+The stock ACC remains owned by Peugeot: openpilot neither cancels nor controls
+its throttle/braking. CarParams remains openpilotLongitudinalControl=false,
+pcmCruise=true, autoResumeSng=false, safetyParam=0x5008 in lateral-test mode.
 
-This P87 controller emits only lateral LKA and does not cancel or control
-Peugeot ACC. The stock-cruise mismatch alert now respects that ownership on
-this P87 lateral-only port. Other ports retain their existing check. The
-controlsMismatch check, its 200-frame threshold, RX checks and torque limits
-are unchanged. CarParams remains openpilotLongitudinalControl=false and
-pcmCruise=true; Panda uses psa, safetyParam=0x5008 in the opt-in lateral mode.
+## Software eligibility from 30 km/h
 
-## Validation and limits
+The P87 software and native Panda gate now use 30–140 km/h. Other PSA ports
+retain their thresholds. This is software eligibility, not proof that the
+physical EPS supports steering at 30. Torque still requires a real, fresh
+EPS state 3, actual ACC activity, valid camera template and every existing
+vehicle/driver/safety prerequisite. EPS states 1/2 permit zero-torque preparation
+only; EPS 0, faults, unknown states and stale feedback produce no torque.
+Python now uses the same 250 ms maximum EPS-feedback age as native safety.
+The existing torque/rate/driver limits remain unchanged.
 
-63 targeted/interface/native-safety/car-state-machine tests pass. They no
-longer force Panda authority, and cover both message orders, startup feedback,
-ACC suspension/resume, pedal/fault recovery, the 2-second window and steering
-gates. The existing legacy PSA suite still has the same 10 known failures.
+The twelve old captures contain 3,008 EPS=0 samples and 622 EPS=2 samples in
+30–<52 km/h. The minimum observed available EPS speed is 49.875 km/h, and
+all observed EPS=3 samples are above 68.48 km/h. No command at 30 was tested
+physically. If the EPS stays unauthorized, this update keeps a neutral command
+and reports eps_not_authorized. Do not interpret an enabled/green UI alone as
+confirmation of steering assistance. No EPS state, driver torque or hands
+message is spoofed to overcome this limit.
 
-The twelve previously supplied captures contain 5,625,246 CAN frames. Full
-native RX replay accepts all 564,527 checked prerequisite packets. The old
-version grants zero authority. The corrected replay grants about 22.98 seconds
-in one valid session. Car events and the host engagement state machine agree
-with Panda for all 2,298 enabled updates: zero enabled/authority disagreements,
-zero cruise mismatches and zero unsafe admissions. The other stock-ACC intervals
-remain unengaged after driver overrides; stock ACC is allowed to continue.
-This replay excludes model/driver-monitoring/MADS state and physical actuation.
+## Diagnostics and longitudinal research
 
-Vyciokas's latest trial on fc68d36 is available only as his written report;
-its route and /data/mismatch_capture.log have not been supplied here. These
-checks do not prove the EPS accepts steering commands on his car.
+The controller logs psa_p87_status on phase changes and once per second.
+It distinguishes lateral_not_requested, EPS refusal, waiting_for_eps_ack,
+stale CAN/template/EPS feedback, speed and driver inhibitions, and active
+commands. It records requested torque, actual controller torque, LKA state
+and factor, native EPS state/age, stock ACC status and relevant stock
+braking/torque/standstill/GO fields. The fields labelled DBC are observations;
+their names/scaling alone do not validate a P87 braking controller.
 
-## Update
+The old captures contain native requested deceleration from -2.4 to the
+2.05 DBC sentinel, but no stock-ACC-active stationary interval, no asserted
+VEHICLE_STANDSTILL, DRIVE_AWAY_REQUEST or COCKPIT_GO_ACC_REQUEST. They do not
+validate standstill holding or automatic restart. Openpilot longitudinal and
+Stop & Go therefore remain unimplemented and disabled in this driving branch.
+No brake, engine-torque or resume TX is whitelisted. The new logging is the
+concrete preparation for examining normal Peugeot ACC stops and resumptions.
 
-Use the same installation branch:
-https://installer.comma.ai/polo2169/peugeot-5008-p87-cristianku
-
-Install while parked, allow compilation and the matching Panda firmware update
-to finish, then reboot. Keep the normal firmware-signature check enabled.
-Verify PSA safetyParam 0x5008 (20488), openpilotLongitudinalControl=false,
-pcmCruise=true and safetyRxChecksInvalid=false.
-
-For a local patch installation, copy this package outside /data/openpilot:
+After a completed trip, run this read-only command on the comma:
 
 ```sh
-python3 /data/5008-cristianku/install.py --openpilot-root /data/openpilot --mode lateral-test --check-only
-python3 /data/5008-cristianku/install.py --openpilot-root /data/openpilot --mode lateral-test --build
+cd /data/openpilot
+PYTHONPATH=. python openpilot/tools/audit_5008_engagement.py /data/media/0/realdata --latest --output /data/5008-diagnostic.json
 ```
 
-The installer accepts stable Cristianku with original/T15 opendbc, original P87
-source/flattened releases, and the 12 October source 49d2444 / release fc68d36
-with opendbc 30d2e2b. It checks BOTH patches before changing files and saves
-both patches, old configuration and documentation. Unknown/dirty revisions are
-rejected. Without an explicit --mode, local patch installation selects observe.
+Share /data/5008-diagnostic.json. An exact older route can instead be selected
+with --route PREFIX. The collector reads local logs only: no sockets, parameter
+writes or CAN transmissions. It distinguishes actuators.torque, carOutput torque,
+sendcan 0x3F2 and CAN echoes/rejections, plus MADS state and controller diagnostics.
+Its coverage flag reports missing/corrupt segments and qlog-only sampling;
+those cannot prove that a CAN command was absent. Original rlogs remain needed
+for detailed validation of new longitudinal commands.
 
-Lateral TX remains restricted to 0x3F2 bus 0, 52–140 km/h, valid camera template
-and EPS acknowledgement. Recognition while moving is unchanged. ACC can be
-active below 52 km/h while steering TX stays inhibited. The 50 km/h setting
-for Paul's 308 is separate and is not applied to this 5008.
+## Installation and validation
 
-The first physical validation should be on a closed course. Record CarParams,
-pandaStates, carState, carControl and CAN during enable/suspend/resume. Expected:
-controlsAllowed=true on a valid ACC edge, no 2-second controlsMismatch kill;
-zero steering command below 52 km/h and until EPS acknowledges the handshake.
+Installation branch: https://installer.comma.ai/polo2169/peugeot-5008-p87-cristianku
 
-To roll back a local patch installation, stop openpilot, reverse the saved
-openpilot-controls.patch at the root and opendbc.patch in opendbc_repo (or use
---directory=opendbc_repo for a flattened tree), restore the saved configuration
-and documentation, and rebuild the previous sources before restarting.
+Update while parked. Allow the normal build and matching Panda firmware update,
+then reboot. Keep firmware-signature checking enabled. The standard branch
+explicitly selects lateral-test; local install.py defaults to observation.
+A local patch installation checks supported revisions and clean trees before
+changing files and saves the old configuration, docs and reversible patches.
+The new source/flat 13 October releases are supported in addition to older
+P87 releases. Unknown/dirty revisions are rejected.
+
+Targeted tests exercise the host/native 30 km/h boundaries, EPS freshness and
+acknowledgement, driver priorities, real ACC edges, MADS manual-mode behavior,
+ordinary selfdrive activation, and the prohibition of brake/resume TX.
+The twelve old captures are replayed through native RX, car events and the
+host state machine. Synthetic ACK tests and CAN replay do not validate the
+physical vehicle response. A full on-device build and physical steering at
+30 have not been verified by this release process.
+
+For rollback of a local patch install, reverse the saved host and opendbc
+patches in their recorded directories, restore the saved configuration and
+documentation, then rebuild the previous sources before restarting. An older
+branch checkout likewise requires its matching firmware; do not skip flashing.
