@@ -1,8 +1,47 @@
-# Peugeot 5008 P87 — ACC-coupled lateral experiment, 16 October 2026
+# Peugeot 5008 P87 — steering ceiling by speed, 26 October 2026
 
-This update addresses independent MADS activity while driving manually and
-adds diagnostics for the steering request, EPS response and stock ACC.
-Recognition while moving and the 13 October ACC/Panda engagement fix remain.
+This update replaces the P87's fixed 150-count steering ceiling with the
+requested 70-count ceiling at 50 km/h, decreasing linearly to 30 at 130 km/h.
+The ACC-coupled engagement, EPS acknowledgement and diagnostics from the
+16 October release remain in place.
+
+## Steering ceiling
+
+| Measured wheel speed, km/h | Maximum absolute raw CAN torque |
+| --- | --- |
+| 50 | 70 |
+| 70 | 60 |
+| 90 | 50 |
+| 110 | 40 |
+| 130 | 30 |
+| 140 | 30 |
+
+The two knots are interpolated linearly and fractional command magnitudes
+are rounded down. Below 50 the ceiling remains 70; above 130 it remains 30.
+The existing 30–140 km/h eligibility and real EPS acknowledgement still apply.
+These are raw CAN command counts, not a calibrated mechanical torque in Nm.
+The previous ceiling was 150 at every speed, so this is a reduction.
+
+The controller and dedicated P87 Panda hook both enforce the curve. The
+controller rounds speed up to centi-km/h, conservatively relative to Panda's
+integer wheel-speed average. Non-finite host input produces zero torque.
+The 150-count normalization, driver-intervention threshold, 8/38-count slew
+limits and 75-count real-time safety allowance are unchanged. Other PSA
+profiles do not use this curve. Controller diagnostics add torque_limit_raw
+alongside the requested and produced torque.
+
+Tests check the compiled native hook at every 0.01 km/h from 50 through 140,
+accept the ceiling and reject one extra count in both directions. Controller
+integration also covers reaching each ceiling and tracking acceleration and
+deceleration. These software checks do not establish physical EPS authority,
+actual lane tracking or a resolution of intermittent ACC engagement.
+
+The branch includes the matching Panda source. Let the ordinary comma build
+and firmware update complete before use; keep firmware-signature checking
+active. No full comma build or physical test of this curve has been performed
+by this release process. A local installation can be rolled back to the
+previous installation commit 1ae9cd283641a3030764e9304b0bc18dec8b4f52 with its
+matching firmware.
 
 ## Engagement and MADS
 
