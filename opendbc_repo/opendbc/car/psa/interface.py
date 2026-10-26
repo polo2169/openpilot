@@ -16,6 +16,11 @@ class CarInterface(CarInterfaceBase):
       for timestamp, frames in can_packets:
         self.CS.p87_can_timestamp = timestamp
         for address, data, bus in frames:
+          if address == 0x3F2 and bus == 0xC0 and len(data) == 8:
+            # pandad's rejected-TX metadata for physical bus 0, not a
+            # vehicle-bus frame. Native safety resets its slew history on
+            # rejection; keep the controller's next ramp in sync with it.
+            self.CS.p87_lka_rejection_count += 1
           if address == 0x228 and bus == 0:
             # This parser version does not enforce DBC message lengths. Check
             # the P87 variant explicitly before accepting its pedal value.

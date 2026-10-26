@@ -10,6 +10,13 @@ static bool p87_t15, p87_fault, p87_body_ok, p87_acc_ok;
 static bool p87_cruise_requested, p87_rx_initialized;
 static int p87_engine, p87_eps, p87_speed, p87_driver;
 
+static inline int p87_torque_limit(int speed_centi_kph) {
+  // Raw CAN counts. Clamp at 70 below 50 km/h and 30 above 130 km/h;
+  // integer division floors the interpolated magnitude, without +1 slack.
+  const int headroom = SAFETY_CLAMP(13000 - speed_centi_kph, 0, 8000);
+  return 30 + (headroom / 200);
+}
+
 static safety_config p87_init(void) {
   p87_t15 = false;
   p87_fault = true;
@@ -119,8 +126,8 @@ static bool p87_tx(const CANPacket_t *msg) {
     allowed = allowed && p87_ready() && (status >= 3) && (factor > 0) &&
       ((torque == 0) || ((p87_eps == 3) && (status == 4)));
   }
-  static const TorqueSteeringLimits limits = {
-    .max_torque = 150, .max_rate_up = 8, .max_rate_down = 38, .max_rt_delta = 75,
+  const TorqueSteeringLimits limits = {
+    .max_torque = p87_torque_limit(p87_speed), .max_rate_up = 8, .max_rate_down = 38, .max_rt_delta = 75,
     .driver_torque_allowance = 50, .driver_torque_multiplier = 1, .type = TorqueDriverLimited,
   };
   // Enforce the check result. The legacy 3008 hook currently discards it.

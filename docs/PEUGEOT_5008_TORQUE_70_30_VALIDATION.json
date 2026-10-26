@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-26",
+  "vehicle": "PSA_PEUGEOT_5008_P87",
+  "previous_installation_commit": "1ae9cd283641a3030764e9304b0bc18dec8b4f52",
+  "speed_knots_kph": [
+    50,
+    130
+  ],
+  "torque_ceiling_raw": [
+    70,
+    30
+  ],
+  "previous_ceiling_raw": 150,
+  "units": "raw CAN command counts, not Nm",
+  "interpolation": "linear, floor magnitude; clamp outside knots",
+  "controller_normalization_raw": 150,
+  "ordinary_slew_up_down_raw_per_50ms": [
+    8,
+    38
+  ],
+  "panda_absolute_ceiling_enforced": true,
+  "driver_eps_acc_fault_gates_unchanged": true,
+  "full_comma_build_verified": false,
+  "flashed_on_device": false,
+  "physical_steering_validated": false,
+  "intermittent_engagement_resolved": false,
+  "targeted_tests_passed": 68,
+  "native_speed_points": 9001,
+  "native_test_compiler_flags": [
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fsanitize=undefined"
+  ],
+  "test_log_sha256": "7311ebee81ac23d33e811ac65f9e092bcf0a5c42ef9ba87f4aa947b240944ebb",
+  "panda_rejection_ramp_resynchronization_tested": true
+}

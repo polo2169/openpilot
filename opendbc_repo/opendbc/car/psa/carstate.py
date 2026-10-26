@@ -40,6 +40,7 @@ class CarState(CarStateBase):
     self.p87_pedal_packet_valid = False
     self.p87_pedal_valid = False
     self.p87_can_timestamp = 0
+    self.p87_lka_rejection_count = 0
     self.p87_cruise_fault_latched = False
     # self.artiv_diag_response_updated = False
     # self.artiv_diag_response = {

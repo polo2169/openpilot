@@ -219,19 +219,19 @@ class TestP87Safety(unittest.TestCase):
     self.assertFalse(self.safety.safety_tx_hook(self.command(9)))
 
   def test_absolute_limit_is_enforced(self):
-    self.feed()
-    msg = self.command(150)
-    msg[0].data[3] = 151 >> 3
-    msg[0].data[4] = (msg[0].data[4] & 0x1F) | ((151 & 7) << 5)
-    self.safety.set_desired_torque_last(150)
-    self.safety.set_rt_torque_last(150)
+    self.feed(speed=50.)
+    msg = self.command(71)
+    self.safety.set_desired_torque_last(70)
+    self.safety.set_rt_torque_last(70)
     self.assertFalse(self.safety.safety_tx_hook(msg))
 
-  def test_realtime_limit_is_enforced(self):
-    self.feed()
-    self.safety.set_desired_torque_last(75)
-    self.safety.set_rt_torque_last(0)
-    self.assertFalse(self.safety.safety_tx_hook(self.command(76)))
+  def test_realtime_reference_cannot_raise_the_speed_ceiling(self):
+    self.feed(speed=130.)
+    self.safety.set_desired_torque_last(30)
+    self.safety.set_rt_torque_last(75)
+    # The unchanged 75-count real-time allowance cannot grant an extra
+    # count above the 30-count high-speed absolute ceiling.
+    self.assertFalse(self.safety.safety_tx_hook(self.command(31)))
 
   def test_no_radar_acc_or_spoof_messages(self):
     self.feed()

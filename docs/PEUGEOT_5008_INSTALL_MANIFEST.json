@@ -1,9 +1,9 @@
 {
-  "source_commit": "48574fb40446b8af6fce7ddb276847b82e6dc460",
+  "source_commit": "6162e013a98a5ab0fc3290536af4e8a35cf3dd94",
   "openpilot_base": "8624e793c3b79ecf38975fd2d1028b505f271b28",
   "pinned_dependencies": {
     "msgq_repo": "e7396e76dadbb49e374d4b664ff6bbb43a39bcb0",
-    "opendbc_repo": "8560235c247bb416e6ced9923d8ca887ef9ef011",
+    "opendbc_repo": "4a5b8891d9834059e1e6cfb1d62606ea89489f09",
     "openpilot/sunnypilot/neural_network_data": "56aebacb53bf9515ddb2b3ebf07e4d89fea846e7",
     "panda": "ea5a83a956d61c7540c1a13a8d76f08c24675d1b",
     "rednose_repo": "28d4a7f69e80e1c3e0d24ca0733d7daeaeade3d0",
@@ -1094,5 +1094,13 @@
   "controls_mismatch_threshold_frames": 200,
   "latest_trial_raw_capture_available": false,
   "software_lateral_min_kph": 30,
-  "longitudinal_stop_go_implemented": false
+  "longitudinal_stop_go_implemented": false,
+  "torque_speed_knots_kph": [
+    50,
+    130
+  ],
+  "torque_ceiling_raw": [
+    70,
+    30
+  ]
 }
