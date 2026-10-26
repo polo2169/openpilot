@@ -30,6 +30,13 @@ limits and 75-count real-time safety allowance are unchanged. Other PSA
 profiles do not use this curve. Controller diagnostics add torque_limit_raw
 alongside the requested and produced torque.
 
+If Panda receives a newer speed before the host and rejects an outdated
+command, the controller uses the real rejected-TX echo to restart its ramp
+from zero, matching native safety history. Vehicle CAN frames and ordinary
+TX echoes cannot trigger this reset. No authority or safety limit is forced;
+the existing ACC, EPS, pedal and fault gates must still pass. The rejection
+count is logged as panda_lka_rejections.
+
 Tests check the compiled native hook at every 0.01 km/h from 50 through 140,
 accept the ceiling and reject one extra count in both directions. Controller
 integration also covers reaching each ceiling and tracking acceleration and

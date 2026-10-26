@@ -24,7 +24,7 @@
   "flashed_on_device": false,
   "physical_steering_validated": false,
   "intermittent_engagement_resolved": false,
-  "targeted_tests_passed": 66,
+  "targeted_tests_passed": 68,
   "native_speed_points": 9001,
   "native_test_compiler_flags": [
     "-Wall",
@@ -32,5 +32,6 @@
     "-Werror",
     "-fsanitize=undefined"
   ],
-  "test_log_sha256": "b41837ac032b5d3a8c41ac78ade085c3dddcd44d8ab95f6faa268309414e3b50"
+  "test_log_sha256": "7311ebee81ac23d33e811ac65f9e092bcf0a5c42ef9ba87f4aa947b240944ebb",
+  "panda_rejection_ramp_resynchronization_tested": true
 }
