@@ -10,12 +10,29 @@ from opendbc.car.psa.psacan import create_p87_lka
 from opendbc.car.psa.values import CAR, PSA_5008_LATERAL_PARAM
 
 
+class ModelSource:
+  def __init__(self):
+    self.seen = self.valid = self.alive = {'modelV2': True}
+    self.logMonoTime = {'modelV2': 0}
+    self.model = SimpleNamespace(laneLineProbs=[0., .99, .99, 0.],
+      laneLines=[SimpleNamespace(y=[v]) for v in (-5., -1.75, 1.75, 5.)],
+      meta=SimpleNamespace(laneChangeState='off'))
+
+  def update(self, timeout):
+    pass
+
+  def __getitem__(self, key):
+    return self.model
+
+
 class TestP87Interface(unittest.TestCase):
   def interface(self, lateral=False):
     with patch.dict(os.environ, {'PSA_5008_LATERAL_TEST': '1' if lateral else '0'}):
       cp = CarInterface.get_non_essential_params(CAR.PSA_PEUGEOT_5008_P87)
     sp = CarInterface.get_non_essential_params_sp(cp, CAR.PSA_PEUGEOT_5008_P87)
-    return CarInterface(cp, sp)
+    ci = CarInterface(cp, sp)
+    ci.CC.model_sm = ModelSource()
+    return ci
 
   def state(self, **changes):
     state = structs.CarState()
@@ -172,7 +189,7 @@ class TestP87Interface(unittest.TestCase):
     ci = self.interface(True)
     act, sends = ci.CC.update(self.control(), structs.CarControlSP(), self.state(), 1_000_000_000)
     self.assertEqual([(s.address, s.src) for s in sends], [(0x3F2, 0)])
-    self.assertEqual(act.torqueOutputCan, 8)
+    self.assertEqual(act.torqueOutputCan, 0)  # A previous EPS=3 cannot bypass admission.
     self.assertEqual(sends[0].dat[:3], bytes.fromhex('a1450d'))
 
   def test_missing_or_stale_template_sends_nothing(self):
@@ -197,7 +214,7 @@ class TestP87Interface(unittest.TestCase):
     ci = self.interface(True)
     act, sends = ci.CC.update(self.control(), structs.CarControlSP(), self.state(eps_active=False, eps_state_lka=2), 1_000_000_000)
     self.assertEqual(act.torqueOutputCan, 0)
-    self.assertEqual((sends[0].dat[4] >> 2) & 7, 3)
+    self.assertEqual((sends[0].dat[4] >> 2) & 7, 2)
 
   def test_thirty_kph_still_needs_real_fresh_eps_authorization(self):
     for speed in (30., 40., 51.99):
@@ -206,9 +223,9 @@ class TestP87Interface(unittest.TestCase):
           ci = self.interface(True)
           act, sends = ci.CC.update(self.control(), structs.CarControlSP(),
             self.state(speed_kph=speed, eps_state_lka=eps, eps_active=eps==3), 1_000_000_000)
-          self.assertEqual(act.torqueOutputCan != 0, eps==3)
+          self.assertEqual(act.torqueOutputCan, 0)
           status=(sends[0].dat[4] >> 2)&7
-          self.assertEqual(status, 4 if eps==3 else 3 if eps in (1,2) else 2)
+          self.assertEqual(status, 2)
           if eps==0:self.assertEqual(ci.CC.p87_lateral_status['phase'], 'eps_not_authorized')
 
   def test_frozen_or_missing_eps_cannot_authorize_a_command(self):
@@ -251,13 +268,23 @@ class TestP87LowSpeedNativeIntegration(unittest.TestCase):
     ci=helper.interface(True)
     safety=native.TestP87Safety();safety.setUp()
     cc=helper.control()
-    for frame,eps in ((0,2),(5,3),(10,0)):
-      ci.CC.frame=frame;safety.feed(speed=30.,eps=eps)
+    outputs = []
+    for step in range(32):
+      now = 1_000_000_000 + step * 50_000_000
+      eps = 0 if step == 31 else 3 if ci.CC.p87_admission.request_ns else 2
+      ci.CC.frame=step*5
+      safety.safety.set_timer(100_000+step*50_000)
+      safety.feed(speed=30.,eps=eps)
+      ci.CC.model_sm.logMonoTime['modelV2'] = now
       act,sends=ci.CC.update(cc,structs.CarControlSP(),
-        helper.state(speed_kph=30.,eps_state_lka=eps,eps_active=eps==3),1_000_000_000)
-      self.assertEqual(act.torqueOutputCan != 0, eps==3)
+        helper.state(speed_kph=30.,eps_state_lka=eps,eps_active=eps==3,
+                     p87_lka_timestamp=now,p87_eps_timestamp=now),now)
+      outputs.append(act.torqueOutputCan)
       self.assertEqual(len(sends),1)
       self.assertTrue(safety.safety.safety_tx_hook(native.make_msg(sends[0].src,sends[0].address,dat=sends[0].dat)))
+    self.assertEqual(outputs[:9], [0]*9)
+    self.assertGreater(outputs[-2], 0)
+    self.assertEqual(outputs[-1], 0)
 
 
 if __name__ == '__main__':

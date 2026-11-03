@@ -11,8 +11,8 @@ from opendbc.safety.tests import test_psa_5008 as native_fixture
 
 class TestP87TorqueCurve(unittest.TestCase):
   def test_knots_clamping_rounding_and_nonfinite_input(self):
-    for speed, ceiling in ((30., 70), (49.99, 70), (50., 70), (50.01, 69),
-                           (70., 60), (90., 50), (110., 40), (130., 30), (140., 30)):
+    for speed, ceiling in ((30., 90), (49.99, 90), (50., 90), (50.01, 89),
+                           (70., 77), (90., 65), (110., 52), (130., 40), (140., 40)):
       with self.subTest(speed=speed):
         self.assertEqual(p87_torque_limit(speed), ceiling)
     for speed in (math.nan, math.inf, -math.inf):
@@ -23,11 +23,12 @@ class TestP87TorqueCurve(unittest.TestCase):
     native.setUp()
     native.feed(speed=50.)
     for speed_centi in range(5000, 14001):
-      ceiling = max(30, min(70, (19000 - speed_centi) // 200))
+      ceiling = 40 + max(0, min(8000, 13000-speed_centi)) // 160
       self.assertEqual(p87_torque_limit(speed_centi / 100), ceiling)
       wheels = speed_centi.to_bytes(2, 'big') * 4
       self.assertTrue(native.safety.safety_rx_hook(make_msg(0, 0x30D, dat=wheels)))
       for sign in (-1, 1):
+        native.ack()
         native.safety.set_desired_torque_last(sign * ceiling)
         native.safety.set_rt_torque_last(sign * ceiling)
         self.assertTrue(native.safety.safety_tx_hook(native.command(sign * ceiling)), (speed_centi, sign))
@@ -45,8 +46,11 @@ class TestP87TorqueCurve(unittest.TestCase):
       now = 1_000_000_000 + step * 50_000_000
       ci.CC.frame = step * ci.CC.params.STEER_STEP
       native.safety.set_timer(100_000 + step * 50_000)
-      native.feed(speed=speed)
-      state = helper.state(speed_kph=speed, p87_lka_timestamp=now, p87_eps_timestamp=now)
+      eps = 3 if ci.CC.p87_admission.request_ns else 2
+      native.feed(speed=speed, eps=eps)
+      ci.CC.model_sm.logMonoTime['modelV2'] = now
+      state = helper.state(speed_kph=speed, eps_active=eps==3, eps_state_lka=eps,
+                           p87_lka_timestamp=now, p87_eps_timestamp=now)
       act, sends = ci.CC.update(cc.as_reader(), structs.CarControlSP(), state, now)
       self.assertEqual(len(sends), 1)
       self.assertLessEqual(abs(act.torqueOutputCan), p87_torque_limit(speed))
@@ -61,22 +65,22 @@ class TestP87TorqueCurve(unittest.TestCase):
     return outputs
 
   def test_both_directions_reach_each_ceiling_through_real_controller_and_native_safety(self):
-    for speed, ceiling in ((30., 70), (50., 70), (70., 60), (90., 50), (110., 40), (130., 30), (140., 30)):
+    for speed, ceiling in ((30., 90), (50., 90), (70., 77), (90., 65), (110., 52), (130., 40), (140., 40)):
       for sign in (-1, 1):
         with self.subTest(speed=speed, sign=sign):
-          self.assertEqual(self.run_controller([speed] * 12, sign)[-1], sign * ceiling)
+          self.assertEqual(self.run_controller([speed] * 30, sign)[-1], sign * ceiling)
 
   def test_acceleration_and_deceleration_track_ceiling_without_native_rejections(self):
-    speeds = [50.] * 12 + [v / 2 for v in range(101, 261)] + [v / 2 for v in range(259, 99, -1)]
+    speeds = [50.] * 30 + [v / 2 for v in range(101, 261)] + [v / 2 for v in range(259, 99, -1)]
     for sign in (-1, 1):
       outputs = self.run_controller(speeds, sign)
-      for speed, torque in zip(speeds[12:], outputs[12:], strict=True):
+      for speed, torque in zip(speeds[30:], outputs[30:], strict=True):
         self.assertEqual(torque, sign * p87_torque_limit(speed))
 
   def test_fractional_wheel_average_rounds_controller_conservatively(self):
     for total in (20001, 20003, 20799, 20801, 51999, 52001):
       speed = total / 400
-      native_ceiling = max(30, min(70, (19000 - total // 4) // 200))
+      native_ceiling = 40 + max(0, min(8000, 13000-total//4)) // 160
       self.assertLessEqual(p87_torque_limit(speed), native_ceiling)
       self.assertLessEqual(native_ceiling - p87_torque_limit(speed), 1)
 
@@ -95,26 +99,27 @@ class TestP87TorqueCurve(unittest.TestCase):
     native = native_fixture.TestP87Safety()
     native.setUp()
     cc = helper.control()
-    for step in range(24):
+    rejection_step = 30
+    for step in range(70):
       now = 1_000_000_000 + step * 50_000_000
       ci.CC.frame = step * 5
       native.safety.set_timer(100_000 + step * 50_000)
-      native.feed(speed=50. if step < 12 else 50.01)
-      # On step 12 Panda has the newer wheel sample while the host still
-      # requests the old 70-count ceiling. Following its actual rejection,
-      # the next command must restart at 8, not repeat a stale 69 forever.
-      speed = 50. if step <= 12 else 50.01
-      state = helper.state(speed_kph=speed, p87_lka_timestamp=now, p87_eps_timestamp=now,
+      eps = 3 if ci.CC.p87_admission.request_ns else 2
+      native.feed(speed=50. if step < rejection_step else 50.01, eps=eps)
+      speed = 50. if step <= rejection_step else 50.01
+      ci.CC.model_sm.logMonoTime['modelV2'] = now
+      state = helper.state(speed_kph=speed, eps_active=eps==3, eps_state_lka=eps,
+                           p87_lka_timestamp=now, p87_eps_timestamp=now,
                            p87_lka_rejection_count=ci.CS.p87_lka_rejection_count)
       output, sends = ci.CC.update(cc, structs.CarControlSP(), state, now)
       accepted = native.safety.safety_tx_hook(make_msg(0, 0x3F2, dat=sends[0].dat))
-      self.assertEqual(bool(accepted), step != 12)
-      if step == 12:
-        self.assertEqual(output.torqueOutputCan, 70)
+      self.assertEqual(bool(accepted), step != rejection_step)
+      if step == rejection_step:
+        self.assertEqual(output.torqueOutputCan, 90)
         ci.update([(now, [(0x3F2, sends[0].dat, 0xC0)])])
-      if step == 13:
-        self.assertEqual(output.torqueOutputCan, 8)
-    self.assertEqual(output.torqueOutputCan, 69)
+      if step == rejection_step+1:
+        self.assertEqual(output.torqueOutputCan, 0)
+    self.assertEqual(output.torqueOutputCan, 89)
 
 
 if __name__ == '__main__':

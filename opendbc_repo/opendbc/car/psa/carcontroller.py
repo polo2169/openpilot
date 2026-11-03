@@ -14,6 +14,7 @@ from opendbc.car.psa.psacan import (
   create_p87_lka,
 )
 from opendbc.car.psa.values import CarControllerParams, CAR, LKAS_LIMITS, PSA_ADAS_BUS, PSA_5008_MIN_STEER_KPH, p87_torque_limit
+from opendbc.car.psa.p87_admission import P87Admission, lanes_ready
 
 try:
   import openpilot.cereal.messaging as messaging
@@ -79,6 +80,7 @@ class CarController(CarControllerBase):
     self.p87_diag_last_key = None
     self.p87_diag_last_ns = 0
     self.p87_last_lka_rejection_count = 0
+    self.p87_admission = P87Admission()
     self.apply_torque = 0
     self.status = 2
     self.takeover_req = 0
@@ -471,12 +473,15 @@ class CarController(CarControllerBase):
     rejection_count = getattr(CS, 'p87_lka_rejection_count', 0)
     if rejection_count != self.p87_last_lka_rejection_count:
       self.apply_torque_scaled_last = 0
+      if not self.p87_admission.blocked:
+        self.p87_admission.reset()
       self.p87_last_lka_rejection_count = rejection_count
     template_age = now_nanos - CS.p87_lka_timestamp
     eps_age = now_nanos - CS.p87_eps_timestamp
     template_fresh = CS.p87_lka_template is not None and 0 <= template_age <= 150_000_000
     eps_fresh = CS.p87_eps_timestamp > 0 and 0 <= eps_age <= 250_000_000
-    finite = all(math.isfinite(v) for v in (CS.speed_kph, CS.out.steeringTorque, CC.actuators.torque))
+    driver_raw = getattr(CS, 'p87_driver_torque_raw', CS.out.steeringTorque)
+    finite = all(math.isfinite(v) for v in (CS.speed_kph, CS.out.steeringTorque, driver_raw, CC.actuators.torque))
     torque_limit = p87_torque_limit(CS.speed_kph)
     reason = ('lateral_not_requested' if not CC.latActive else 'nonfinite_input' if not finite
       else 'can_invalid' if not CS.out.canValid else 'can_timeout' if CS.out.canTimeout
@@ -487,16 +492,26 @@ class CarController(CarControllerBase):
       else 'below_lateral_speed' if CS.speed_kph < PSA_5008_MIN_STEER_KPH
       else 'above_lateral_speed' if CS.speed_kph > 140.
       else 'camera_template_stale' if not template_fresh else 'eps_feedback_stale' if not eps_fresh
-      else 'driver_torque_override' if abs(CS.out.steeringTorque) > 45.
+      else 'driver_torque_override' if max(abs(CS.out.steeringTorque), abs(driver_raw)) > 45.
+      else 'driver_indicator' if CS.out.leftBlinker or CS.out.rightBlinker
       else 'eps_not_authorized' if CS.eps_state_lka == 0
       else 'eps_fault_or_unknown' if CS.eps_state_lka not in (1, 2, 3) else None)
-    allowed = reason is None
+    model_valid, model_ns = False, 0
+    if self.model_sm is not None:
+      self.model_sm.update(0)
+      model_valid = (self.model_sm.seen['modelV2'] and self.model_sm.valid['modelV2'] and
+                     self.model_sm.alive['modelV2'] and lanes_ready(self.model_sm['modelV2']))
+      model_ns = self.model_sm.logMonoTime['modelV2']
+    tick = self.frame % self.params.STEER_STEP == 0
+    phase, status, factor, torque_allowed = self.p87_admission.update(
+      now_nanos, requested=bool(CC.latActive), reason=reason, eps=CS.eps_state_lka,
+      eps_ns=CS.p87_eps_timestamp, model_valid=model_valid, model_ns=model_ns, tick=tick,
+    )
+    allowed = reason is None and torque_allowed
     if self.frame % self.params.STEER_STEP == 0:
-      factor, status, torque = 0, 2, 0
+      torque = 0
       if allowed:
-        factor = 100
-        status = 4 if CS.eps_active else 3
-        if CS.eps_active:
+        if CS.eps_active and CS.eps_state_lka == 3:
           requested = int(round(CC.actuators.torque * self.params.STEER_MAX))
           torque = apply_driver_steer_torque_limits(
             requested, self.apply_torque_scaled_last, CS.out.steeringTorque,
@@ -512,7 +527,6 @@ class CarController(CarControllerBase):
     elif not allowed:
       self.apply_torque_scaled_last = 0
 
-    phase = reason or ('waiting_for_eps_ack' if not CS.eps_active else 'active')
     self.p87_lateral_status = {
       'mono_ns': now_nanos, 'phase': phase, 'lateral_requested': bool(CC.latActive),
       'openpilot_enabled': bool(CC.enabled), 'speed_kph': CS.speed_kph if finite else None,
@@ -521,6 +535,9 @@ class CarController(CarControllerBase):
       'requested_torque': float(CC.actuators.torque) if finite else None,
       'torque_limit_raw': torque_limit,
       'panda_lka_rejections': rejection_count,
+      'driver_torque_unfiltered_raw': driver_raw if finite else None,
+      'admission_models': self.p87_admission.models, 'model_ns': model_ns,
+      'eps_request_ns': self.p87_admission.request_ns, 'manual_rearm_required': self.p87_admission.blocked,
       'output_torque_raw': self.apply_torque_scaled_last, 'lka_status': self.status,
       'lka_factor': self.apply_torque_factor, 'stock_acc_active': bool(CS.out.cruiseState.enabled),
       'stock_longitudinal': getattr(CS, 'p87_stock_longitudinal', {}),

@@ -14,7 +14,7 @@ PSA_5008_MIN_STEER_KPH = 30.0  # Software eligibility; real EPS authorization re
 
 
 def p87_torque_limit(speed_kph: float) -> int:
-  """Raw CAN ceiling: 70 at 50 km/h, linearly down to 30 at 130 km/h.
+  """Raw CAN ceiling: 90 at 50 km/h, linearly down to 40 at 130 km/h.
 
   Clamp outside the two knots; the independent lateral eligibility still
   applies. Round wheel speed up to centi-km/h and floor command magnitude.
@@ -24,7 +24,7 @@ def p87_torque_limit(speed_kph: float) -> int:
     return 0
   speed_centi_kph = math.ceil(max(50., min(130., speed_kph)) * 100 - 1e-6)
   headroom = max(0, min(8000, 13000 - speed_centi_kph))
-  return 30 + headroom // 200
+  return 40 + headroom // 160
 
 
 class CarControllerParams:

@@ -41,6 +41,7 @@ class CarState(CarStateBase):
     self.p87_pedal_valid = False
     self.p87_can_timestamp = 0
     self.p87_lka_rejection_count = 0
+    self.p87_driver_torque_raw = 0.
     self.p87_cruise_fault_latched = False
     # self.artiv_diag_response_updated = False
     # self.artiv_diag_response = {
@@ -169,6 +170,7 @@ class CarState(CarStateBase):
       # ret.steeringTorqueEps = 0.0
       # Low-pass sul DRIVER_TORQUE rumoroso (FirstOrderFilter, rc=0.05s ~150ms):
       ret.steeringTorque = self.driver_torque_filter.update(cp.vl['STEERING']['DRIVER_TORQUE']) * 3
+      self.p87_driver_torque_raw = cp.vl['STEERING']['DRIVER_TORQUE'] * 3
       ret.steeringTorqueEps = cp.vl['IS_DAT_DIRA']['EPS_TORQUE'] * 10 * 3
 
     else:

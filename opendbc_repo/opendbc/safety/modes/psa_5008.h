@@ -9,12 +9,14 @@ static bool psa_5008_profile = false;
 static bool p87_t15, p87_fault, p87_body_ok, p87_acc_ok;
 static bool p87_cruise_requested, p87_rx_initialized;
 static int p87_engine, p87_eps, p87_speed, p87_driver;
+static bool p87_activation_requested, p87_ack;
+static uint32_t p87_request_ts;
 
 static inline int p87_torque_limit(int speed_centi_kph) {
-  // Raw CAN counts. Clamp at 70 below 50 km/h and 30 above 130 km/h;
+  // Raw CAN counts. Clamp at 90 below 50 km/h and 40 above 130 km/h;
   // integer division floors the interpolated magnitude, without +1 slack.
   const int headroom = SAFETY_CLAMP(13000 - speed_centi_kph, 0, 8000);
-  return 30 + (headroom / 200);
+  return 40 + (headroom / 160);
 }
 
 static safety_config p87_init(void) {
@@ -28,6 +30,9 @@ static safety_config p87_init(void) {
   p87_eps = 0;
   p87_speed = 0;
   p87_driver = 0;
+  p87_activation_requested = false;
+  p87_ack = false;
+  p87_request_ts = 0U;
   static const CanMsg tx[] = {
     {0x3F2, 0, 8, .check_relay = true},
   };
@@ -77,7 +82,13 @@ static void p87_rx(const CANPacket_t *msg) {
       p87_driver = to_signed(msg->data[1], 8) * 3;
       update_sample(&torque_driver, p87_driver);
     }
-    if (msg->addr == 0x495U) { p87_eps = (msg->data[2] >> 2) & 7U; }
+    if (msg->addr == 0x495U) {
+      p87_eps = (msg->data[2] >> 2) & 7U;
+      const uint32_t ack_elapsed = safety_get_ts_elapsed(microsecond_timer_get(), p87_request_ts);
+      p87_ack = p87_activation_requested && (p87_eps == 3) &&
+        (p87_ack || ((ack_elapsed > 0U) && (ack_elapsed < 1000000U)));
+      if ((p87_eps == 0) || (p87_eps > 3)) { p87_activation_requested = false; }
+    }
   }
   if ((msg->bus == 2U) && (msg->addr == 0x412U)) {
     brake_pressed = (msg->data[0] & 0x20U) != 0U;
@@ -104,6 +115,7 @@ static void p87_rx(const CANPacket_t *msg) {
   // Speed and EPS acknowledgement remain separate gates on steering TX.
   if (!feedback_valid || p87_fault || !p87_acc_ok || !p87_t15 || (p87_engine != 3) || !p87_body_ok || gas_pressed || brake_pressed) {
     controls_allowed = false;
+    p87_activation_requested = p87_ack = false;
   }
 }
 
@@ -124,7 +136,16 @@ static bool p87_tx(const CANPacket_t *msg) {
   bool allowed = (factor <= 100) && (angle == 0) && (status >= 2) && (status <= 4);
   if (!neutral) {
     allowed = allowed && p87_ready() && (status >= 3) && (factor > 0) &&
-      ((torque == 0) || ((p87_eps == 3) && (status == 4)));
+      ((torque == 0) || ((p87_eps == 3) && (status == 4) && p87_ack));
+    // Request state 4 at zero torque before accepting a new physical ACK.
+    // A pre-existing EPS=3 alone cannot start a fresh command session.
+    if ((status == 4) && !p87_activation_requested) {
+      allowed = allowed && (torque == 0) && ((p87_eps == 1) || (p87_eps == 2));
+    }
+    if (p87_activation_requested && !p87_ack &&
+        (safety_get_ts_elapsed(microsecond_timer_get(), p87_request_ts) >= 1000000U)) {
+      allowed = false;
+    }
   }
   const TorqueSteeringLimits limits = {
     .max_torque = p87_torque_limit(p87_speed), .max_rate_up = 8, .max_rate_down = 38, .max_rt_delta = 75,
@@ -133,5 +154,11 @@ static bool p87_tx(const CANPacket_t *msg) {
   // Enforce the check result. The legacy 3008 hook currently discards it.
   if (!allowed) { torque = 0; }
   bool violation = steer_torque_cmd_checks(torque, factor != 0, limits);
+  if (neutral || !allowed || violation || (status == 3)) {
+    p87_activation_requested = p87_ack = false;
+  } else if ((status == 4) && !p87_activation_requested) {
+    p87_activation_requested = true;
+    p87_request_ts = microsecond_timer_get();
+  }
   return allowed && !violation;
 }

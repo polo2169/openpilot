@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-03",
+  "vehicle": "PSA_PEUGEOT_5008_P87",
+  "release": "eps-admission-90-40",
+  "previous_installation_commit": "f76cec60d3b2135b21f381c3a4e97aa6dc2ef7cc",
+  "previous_source_commit": "6162e013a98a5ab0fc3290536af4e8a35cf3dd94",
+  "opendbc_commit": "837c53c2dcef71d120bf1302c7ef40be817a8c64",
+  "speed_knots_kph": [
+    50,
+    130
+  ],
+  "torque_ceiling_raw": [
+    90,
+    40
+  ],
+  "units": "raw CAN counts, not Nm",
+  "software_lateral_min_kph": 30,
+  "software_lateral_max_kph": 140,
+  "driver_threshold_raw": 45,
+  "stable_conditions_ms": 300,
+  "distinct_valid_lane_models": 3,
+  "zero_torque_prepare_ms": 100,
+  "eps_first_ack_deadline_ms": 1000,
+  "host_and_native_require_fresh_ack": true,
+  "native_first_ack_deadline_boundaries_tested": true,
+  "late_rejected_echo_preserves_manual_rearm": true,
+  "targeted_tests_passed": 89,
+  "native_speed_points": 9001,
+  "native_test_compiler_flags": [
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fsanitize=undefined"
+  ],
+  "source_test_log_sha256": "947f01821bf6ba56bff8952f6d6459197578b8146ff8af8aa0e05c95b5149d0c",
+  "recorded_rlog_segments_replayed": 31,
+  "recorded_replay_counts": {
+    "native_rx_rejected": 0,
+    "control_updates": 183501,
+    "lateral_requested": 143120,
+    "nonzero_output": 0,
+    "lka_state_2": 36635,
+    "native_tx_accepted": 36701,
+    "zero_torque_activation_requests": 60,
+    "lka_state_3": 6,
+    "lka_state_4": 60
+  },
+  "recorded_replay_limitation": "The recordings contain no EPS=3; no physical response to changed TX is simulated.",
+  "full_comma_build_verified": false,
+  "flashed_on_device": false,
+  "vehicle_lateral_validated": false,
+  "early_engine_start_fault_resolved": false,
+  "requires_matching_panda_firmware": true,
+  "firmware_signature_verification_required": true,
+  "longitudinal_stop_go_implemented": false
+}
