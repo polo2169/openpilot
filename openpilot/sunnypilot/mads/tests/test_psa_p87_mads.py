@@ -60,15 +60,25 @@ class TestP87Mads(unittest.TestCase):
         'selfdriveStateSP':NS(mads=NS(available=mads.enabled_toggle,active=mads.active))}
     self.assertFalse(sm['selfdriveStateSP'].mads.available)
     safety=native.TestP87Safety();safety.setUp()
-    for frame,eps in ((0,2),(5,3),(10,0)):
-      ci.CC.frame=frame;safety.feed(speed=30.,eps=eps)
+    outputs=[]
+    for step in range(32):
+      now=1_000_000_000+step*50_000_000
+      eps=0 if step==31 else 3 if ci.CC.p87_admission.request_ns else 2
+      ci.CC.frame=step*5
+      safety.safety.set_timer(100_000+step*50_000)
+      safety.feed(speed=30.,eps=eps)
+      ci.CC.model_sm.logMonoTime['modelV2']=now
       cc=structs.CarControl(enabled=True,latActive=controls.get_lat_active(sm))
       cc.actuators.torque=.2
       output,sends=ci.CC.update(cc.as_reader(),structs.CarControlSP(),
-        helper.state(speed_kph=30.,eps_state_lka=eps,eps_active=eps==3),1_000_000_000)
+        helper.state(speed_kph=30.,eps_state_lka=eps,eps_active=eps==3,
+                     p87_lka_timestamp=now,p87_eps_timestamp=now),now)
       self.assertTrue(cc.latActive)
-      self.assertEqual(output.torqueOutputCan != 0,eps==3)
+      outputs.append(output.torqueOutputCan)
       self.assertTrue(safety.safety.safety_tx_hook(native.make_msg(0,0x3F2,dat=sends[0].dat)))
+    self.assertEqual(outputs[:9],[0]*9)
+    self.assertGreater(outputs[-2],0)
+    self.assertEqual(outputs[-1],0)
 
   def test_manual_mode_never_requests_lateral_and_retains_blinker_pause(self):
     from types import SimpleNamespace as NS
