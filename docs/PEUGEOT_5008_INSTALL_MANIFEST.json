@@ -1,5 +1,5 @@
 {
-  "source_commit": "6410fdfc2ec3ac4a8a72b2d2f9d9a379e25cf302",
+  "source_commit": "495e7427590fafbd53453af6a7683cb0851487da",
   "openpilot_base": "8624e793c3b79ecf38975fd2d1028b505f271b28",
   "pinned_dependencies": {
     "msgq_repo": "e7396e76dadbb49e374d4b664ff6bbb43a39bcb0",
@@ -1086,11 +1086,11 @@
   "default_mode": "lateral-test",
   "full_comma_build_verified": false,
   "vehicle_lateral_validated": false,
-  "targeted_tests_passed": 89,
+  "targeted_tests_passed": 100,
   "pedal_fix_date": "2026-10-12",
   "rolling_identification_windows_passed": 197,
   "correction_date": "2026-10-13",
-  "previous_release": "f76cec60d3b2135b21f381c3a4e97aa6dc2ef7cc",
+  "previous_release": "3547d2d0ca40fabc3e2d1fd638862dbe9057752b",
   "controls_mismatch_threshold_frames": 200,
   "latest_trial_raw_capture_available": true,
   "software_lateral_min_kph": 30,
@@ -1106,5 +1106,11 @@
   "eps_admission_fix_date": "2026-11-03",
   "eps_first_ack_deadline_ms": 1000,
   "stable_conditions_ms": 300,
-  "distinct_valid_lane_models": 3
+  "distinct_valid_lane_models": 3,
+  "torque_response_update_date": "2026-11-06",
+  "torque_feedback_gain_scale": 0.5,
+  "torque_friction_max_normalized": 0.07,
+  "pid_speed_dependent_limits": true,
+  "baseline_vehicle_lateral_validated": true,
+  "new_physical_steering_validated": false
 }
