@@ -1,3 +1,6 @@
+> Historical plan for the PID-only release f7e716e. The current combined
+> PID/EPS-renewal comparison is PEUGEOT_5008_TEST_PLAN_20261106.md.
+
 # Peugeot 5008 P87 — steering response comparison, 5 November 2026
 
 Hi Vyck,
