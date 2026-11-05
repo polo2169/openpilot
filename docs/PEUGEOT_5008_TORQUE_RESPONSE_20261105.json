@@ -1,0 +1,158 @@
+{
+  "date": "2026-11-05",
+  "vehicle": "PSA_PEUGEOT_5008_P87",
+  "baseline_installation_commit": "3547d2d0ca40fabc3e2d1fd638862dbe9057752b",
+  "baseline_source_commit": "6410fdfc2ec3ac4a8a72b2d2f9d9a379e25cf302",
+  "opendbc_commit": "837c53c2dcef71d120bf1302c7ef40be817a8c64",
+  "kp_scale": 0.5,
+  "ki_scale": 0.5,
+  "max_friction_normalized": 0.07,
+  "friction_raw_ceiling": 10.5,
+  "torque_curve_raw": {
+    "speed_kph": [
+      50,
+      130
+    ],
+    "ceiling": [
+      90,
+      40
+    ]
+  },
+  "driver_override_threshold_raw": 45,
+  "native_safety_source_changed": false,
+  "periodic_eps_cycle_added": false,
+  "native_hands_monitoring_retained": true,
+  "baseline_rlog_segments": 52,
+  "baseline_rlog_hashes_match_diagnostic": true,
+  "baseline_longest_eps3_seconds": 297.519177074,
+  "frozen_input_comparison": {
+    "scope": "Frozen recorded errors, perception, torque estimates and freeze decisions; no changed steering trajectory or physical EPS response is simulated.",
+    "profile": {
+      "kp_scale": 0.5,
+      "ki_scale": 0.5,
+      "max_friction_normalized": 0.07
+    },
+    "baseline_reconstruction_absolute_error": [
+      2.7925001200301836e-10,
+      3.884177202095884e-09,
+      1.7569721622034962e-08
+    ],
+    "speed_groups": [
+      {
+        "speed_center_kph": 90,
+        "samples": 1873,
+        "baseline_request_abs_raw": [
+          2.001904640346766,
+          23.269886523485184,
+          57.92383521795273
+        ],
+        "candidate_request_abs_raw": [
+          1.337182146531344,
+          12.270057085679246,
+          27.37500899519506
+        ],
+        "baseline_request_rms_raw": 31.266546928531714,
+        "candidate_request_rms_raw": 15.467415710905616,
+        "actual_lateral_accel": [
+          -0.26391336917877195,
+          0.02513386309146881,
+          0.2724820077419281
+        ],
+        "desired_lateral_accel": [
+          -0.19563639461994167,
+          -0.04930148646235466,
+          0.12961254715919496
+        ]
+      },
+      {
+        "speed_center_kph": 110,
+        "samples": 61908,
+        "baseline_request_abs_raw": [
+          3.592348052188754,
+          34.20010507106781,
+          68.84037248790263
+        ],
+        "candidate_request_abs_raw": [
+          0.9504453123857476,
+          10.855066098957577,
+          33.602155597326266
+        ],
+        "baseline_request_rms_raw": 40.630772541694824,
+        "candidate_request_rms_raw": 16.977364272526536,
+        "actual_lateral_accel": [
+          -0.36716938912868496,
+          0.00774523033760488,
+          0.4061988249421115
+        ],
+        "desired_lateral_accel": [
+          -0.2798668697476387,
+          -0.001090095320250839,
+          0.19645860865712161
+        ]
+      }
+    ],
+    "frequency_windows": [
+      {
+        "start_mono_s": 580,
+        "end_mono_s": 620,
+        "samples": 3983,
+        "mean_speed_kph": 96.91213152514551,
+        "dominant_yaw_frequency_hz": 1.0983252164647426,
+        "measured_yaw_lateral_accel_std": 0.16791402197391386,
+        "desired_lateral_accel_std": 0.05835004888474343
+      },
+      {
+        "start_mono_s": 1490,
+        "end_mono_s": 1530,
+        "samples": 3983,
+        "mean_speed_kph": 111.99673601668174,
+        "dominant_yaw_frequency_hz": 0.9293327728914157,
+        "measured_yaw_lateral_accel_std": 0.2485323012099758,
+        "desired_lateral_accel_std": 0.10742523710805892
+      },
+      {
+        "start_mono_s": 1540,
+        "end_mono_s": 1580,
+        "samples": 3982,
+        "mean_speed_kph": 111.99213760908616,
+        "dominant_yaw_frequency_hz": 0.9827086444307933,
+        "measured_yaw_lateral_accel_std": 0.21475036929343472,
+        "desired_lateral_accel_std": 0.0787721075084198
+      },
+      {
+        "start_mono_s": 1600,
+        "end_mono_s": 1640,
+        "samples": 3982,
+        "mean_speed_kph": 111.99435332723145,
+        "dominant_yaw_frequency_hz": 0.9572008649022409,
+        "measured_yaw_lateral_accel_std": 0.21126700892874306,
+        "desired_lateral_accel_std": 0.09771185603270756
+      },
+      {
+        "start_mono_s": 1680,
+        "end_mono_s": 1720,
+        "samples": 3982,
+        "mean_speed_kph": 111.98081298820462,
+        "dominant_yaw_frequency_hz": 1.0096263247452382,
+        "measured_yaw_lateral_accel_std": 0.21740624258170688,
+        "desired_lateral_accel_std": 0.07848044643773915
+      },
+      {
+        "start_mono_s": 1720,
+        "end_mono_s": 1760,
+        "samples": 3983,
+        "mean_speed_kph": 112.01608018599771,
+        "dominant_yaw_frequency_hz": 0.9327445793830871,
+        "measured_yaw_lateral_accel_std": 0.2323195237612638,
+        "desired_lateral_accel_std": 0.09153975433611854
+      }
+    ]
+  },
+  "full_comma_build_verified": false,
+  "new_physical_steering_validated": false,
+  "targeted_tests_passed": 100,
+  "validation_log_sha256": {
+    "all-tests.log": "586f4027171838db5b233ad94e2286acd114e267ab6b7076a0788009df2b018b",
+    "source-tests.log": "4252e949961a925a5a991c50223de82fee7c79aa413b222e3ecf2785c01e13eb"
+  }
+}
