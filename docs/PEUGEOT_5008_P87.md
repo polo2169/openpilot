@@ -20,9 +20,8 @@ The P87-only changes are:
 
 The learned acceleration factor and geometric feedforward are retained.
 Stored user preferences are not rewritten. The supplied route used standard
-PID with NNLC and jerk-aware torque modes disabled; keep those same modes
-for the comparison. The test instructions are in
-PEUGEOT_5008_TEST_PLAN_20261106.md.
+PID with NNLC and jerk-aware torque modes disabled. Vehicle comparison of
+the revised PID and EPS renewal remains necessary.
 
 | Measured wheel speed, km/h | Maximum absolute raw CAN torque |
 | --- | --- |
