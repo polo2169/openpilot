@@ -1,5 +1,5 @@
 {
-  "source_commit": "2913c32922e3fd33b6eb2994a25a7ba06a2eedef",
+  "source_commit": "ea4746c81dce4bfb64ee2d2feb28140622a4d951",
   "openpilot_base": "8624e793c3b79ecf38975fd2d1028b505f271b28",
   "pinned_dependencies": {
     "msgq_repo": "e7396e76dadbb49e374d4b664ff6bbb43a39bcb0",
@@ -1090,7 +1090,7 @@
   "pedal_fix_date": "2026-10-12",
   "rolling_identification_windows_passed": 197,
   "correction_date": "2026-10-13",
-  "previous_release": "f7e716ed9b886b3903ce51847ab091cfa42aaa16",
+  "previous_release": "dce1f1bcb68910dbad686be242fb1b718854b1c8",
   "controls_mismatch_threshold_frames": 200,
   "latest_trial_raw_capture_available": true,
   "software_lateral_min_kph": 30,
@@ -1120,5 +1120,6 @@
   "eps_cycle_minimum_speed_kph": 50,
   "native_hands_stable_ms": 1000,
   "physical_cycle_validated": false,
-  "native_safety_source_changed": false
+  "native_safety_source_changed": false,
+  "correspondence_removed_date": "2026-11-06"
 }
