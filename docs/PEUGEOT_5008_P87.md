@@ -1,4 +1,4 @@
-# Peugeot 5008 P87 — calmer PID and planned EPS renewal, 8 November 2026
+# Peugeot 5008 P87 — runtime tuning and bounded driver resumption, 8 November 2026
 
 Installation: https://installer.comma.ai/polo2169/peugeot-5008-p87-cristianku
 
@@ -16,7 +16,7 @@ both aborted after about 60 ms on changing perception, before EPS release
 finished. The release itself follows 3 -> 2 -> 0 -> 2; the last transition
 arrives about 1.45 s or 0.67 s after neutral in those two examples.
 These observations motivate the bounded zero-torque wait described below.
-The new physical tracking and renewal still require a vehicle comparison.
+The new physical tracking, renewal and driver resumption require a vehicle comparison.
 
 The P87-only changes are:
 
@@ -93,14 +93,44 @@ Once LKA=4 has been requested, a gate loss or missing first ACK latches the
 stop; no automatic request retry extends that clock. Unsolicited active EPS
 withdrawal cannot start a cycle. No artificial driver/hands feedback is sent.
 
-Validation includes 131 targeted tests: the real PID and vehicle model,
+After a brief driver override, lateral steering can now return automatically
+while the lateral request and stock ACC remain active. The operator must
+expect this return after releasing steering effort. Any request-off cancels
+the pending return. No ACC engagement or longitudinal command is generated.
+
+Only an override observed during established physical EPS=3 assistance arms
+this pause. Torque is immediately withdrawn using neutral LKA. Before the
+new request, EPS=0 may be observed while waiting at zero; unsolicited EPS
+loss from active assistance cannot arm recovery. Driver effort must fall to
+<=30 raw (including filtered and unfiltered signals), steeringPressed must
+clear, and this release must remain stable for 300 ms. Native hands feedback
+must remain confirmed for one second and lane perception must be fresh.
+Then revalidate lanes for 300 ms / three distinct models, observe a fresh
+released EPS=1/2 after the pause, prepare at zero and request a new physical
+EPS=3 ACK before applying the normal bounded torque ramp.
+
+A driver who has not released effort within two seconds requires manual
+reengagement. The complete pause/return budget is five seconds from the
+original override, with no reset on repeated effort or perception changes.
+The first-ACK limit remains one second. Hard faults, pedals, indicators,
+stale CAN/EPS feedback or a Panda rejection during the return latch a stop.
+After LKA=4, any eligibility loss also latches a stop. No failed request is
+automatically retried. Another override within five seconds of a successful
+return requires manual reengagement to avoid repeated steering handovers.
+Successful returns, attempts, phase, timestamps and gate veto are logged in
+psa_p87_status. This feature has not yet been physically validated.
+
+Validation includes 152 targeted tests: the real PID and vehicle model,
 default/forced runtime selection of version 0 or 1, live/manual friction
 bounds, unaffected other PSA tuning, current dynamic
 limits, real controller/native safety integration, repeated planned cycles
 in both directions, abort/timeout checks, and the existing ACK,
 fault, pedal and rate-limit regressions. Tests also replay the observed
 release pattern and temporary model loss through the real host controller
-and native Panda checks. Native C is compiled for the tests.
+and native Panda checks. The bounded driver-return tests include actual
+CAN/native ACK, off-tick override pulses, release/hands stability, deadlines,
+request cancellation, repeated overrides and hard vetoes. Native C is
+compiled for the tests.
 A version-0 frozen-input comparison reconstructs the installed PID and
 shows weaker new requests;
 it does not simulate the new vehicle trajectory or prove physical stability.
@@ -108,8 +138,9 @@ The next test must check both reduced hunting and adequate tracking in bends.
 
 This revision changes host controller code. The matching Panda safety source
 is unchanged. Allow the normal on-device build and firmware-signature checks
-to finish before use. Rollback to installation commit c15de92 restores the
-previous runtime response and renewal behavior with its matching source set. Keep
+to finish before use. Rollback to installation commit 9313a7d restores the
+calmer selected V0 and corrected cycle waits without this bounded driver
+resumption feature. Keep
 normal firmware verification enabled.
 
 After parking at the end of the comparison, collect the read-only diagnostic:

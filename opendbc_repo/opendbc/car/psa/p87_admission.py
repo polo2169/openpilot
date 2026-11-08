@@ -1,6 +1,7 @@
 """P87 zero-torque admission. An LKA request is distinct from an EPS ACK."""
 import math
 from opendbc.car.psa.p87_eps_cycle import PERIOD_NS, RELEASE_TIMEOUT_NS, TOTAL_TIMEOUT_NS
+from opendbc.car.psa.p87_driver_resume import OVERRIDE_TIMEOUT_NS, RESUME_TIMEOUT_NS, RESUME_COOLDOWN_NS
 
 STABLE_NS = 300_000_000
 MODEL_TIMEOUT_NS = 500_000_000
@@ -25,6 +26,7 @@ class P87Admission:
   def __init__(self):
     self.last_clock = 0
     self.cycle_count = 0
+    self.resume_count = self.resume_attempts = self.last_resume_ns = 0
     self.reset()
 
   def reset(self):
@@ -34,6 +36,8 @@ class P87Admission:
     self.blocked = False
     self.active_since = self.cycle_since = 0
     self.cycling = False
+    self.resuming = False
+    self.resume_since = 0
 
   def block(self, reason):
     if not self.blocked:
@@ -41,25 +45,54 @@ class P87Admission:
     self.blocked = True
     self.factor = 0
     self.cycling = False
+    self.resuming = False
 
   def update(self, now, *, requested, reason, eps, eps_ns, model_valid, model_ns, tick,
-             cycle_ready=False, cycle_resume_ready=True):
+             cycle_ready=False, cycle_resume_ready=True, driver_released=False, driver_resume_ready=False):
     clock_ok = type(now) is int and now > 0 and now >= self.last_clock
     gap = self.last_clock > 0 and now-self.last_clock > 150_000_000
     self.last_clock = now if clock_ok else self.last_clock
     if not requested:
       self.reset()
+      self.last_resume_ns = 0
       return 'lateral_not_requested', 2, 0, False
     if not clock_ok or gap:
       self.block('control_update_timeout' if clock_ok else 'invalid_clock')
     if self.cycling and now-self.cycle_since >= TOTAL_TIMEOUT_NS:
       self.block('eps_cycle_timeout')
+    if self.resuming and now-self.resume_since >= RESUME_TIMEOUT_NS:
+      self.block('driver_resume_timeout')
+    if self.resuming and eps not in (0, 1, 2, 3):
+      self.block('eps_fault_or_unknown')
+    # A simultaneous torque indication cannot turn an unsolicited EPS loss
+    # into an authorized driver-pause recovery.
+    if self.phase == 'active' and eps != 3 and reason == 'driver_torque_override':
+      self.block('eps_authorization_lost')
     # EPS=0 can be a consequence of our own neutral release. It never starts
     # a cycle and cannot authorize preparation or torque. Fault states still veto.
     if self.cycling and self.phase != 'waiting_for_eps_ack' and reason == 'eps_not_authorized' and eps == 0:
       reason = None
+    if self.resuming and self.phase != 'waiting_for_eps_ack' and reason == 'eps_not_authorized' and eps == 0:
+      reason = None
     if reason:
-      if reason in ('driver_torque_override', 'driver_indicator', 'below_lateral_speed') and not self.blocked and not self.cycling:
+      if (reason == 'driver_torque_override' and self.phase == 'active' and self.active_since > 0
+          and eps == 3 and not self.blocked and not self.cycling):
+        if self.last_resume_ns and now-self.last_resume_ns < RESUME_COOLDOWN_NS:
+          self.block('driver_resume_repeated_override')
+        else:
+          self.resuming = True
+          self.resume_since = self.since = now
+          self.resume_attempts += 1
+          self.phase = 'driver_resume_pause'
+          self.clear_since = self.last_model = self.models = self.request_ns = self.factor = 0
+      elif self.resuming and reason == 'driver_torque_override' and self.phase != 'waiting_for_eps_ack':
+        if now-self.resume_since >= OVERRIDE_TIMEOUT_NS:
+          self.block('driver_resume_override_timeout')
+        else:
+          self.phase = 'driver_resume_pause'
+          self.clear_since = self.last_model = self.models = self.factor = 0
+      elif (reason in ('driver_torque_override', 'driver_indicator', 'below_lateral_speed')
+            and not self.blocked and not self.cycling and not self.resuming):
         self.reset()
         self.since = now
         self.phase = reason
@@ -68,6 +101,21 @@ class P87Admission:
       return self.phase, 2, 0, False
     if self.blocked:
       return self.phase, 2, 0, False
+
+    if self.resuming:
+      if not driver_released and now-self.resume_since >= OVERRIDE_TIMEOUT_NS:
+        self.block('driver_resume_override_timeout')
+        return self.phase, 2, 0, False
+      if self.phase == 'waiting_for_eps_ack':
+        if not driver_released or not driver_resume_ready:
+          self.block('driver_resume_gate_lost')
+          return self.phase, 2, 0, False
+      elif (not driver_released or not driver_resume_ready or eps not in (1, 2) or eps_ns <= self.resume_since):
+        self.phase = 'driver_resume_waiting_conditions' if driver_released else 'driver_resume_pause'
+        self.clear_since = self.last_model = self.models = self.factor = 0
+        return self.phase, 2, 0, False
+      elif self.phase in ('driver_resume_pause', 'driver_resume_waiting_conditions'):
+        self.phase = 'validating_lanes'
     if self.phase == 'active':
       if eps != 3:
         self.block('eps_authorization_lost')
@@ -101,6 +149,9 @@ class P87Admission:
 
     fresh_model = model_valid and 0 < model_ns <= now and now-model_ns <= MODEL_TIMEOUT_NS
     if not fresh_model or model_ns < self.last_model:
+      if self.resuming:
+        self.block('driver_resume_model_invalid')
+        return self.phase, 2, 0, False
       if self.cycling:
         self.block('eps_cycle_model_invalid')
         return self.phase, 2, 0, False
@@ -136,6 +187,9 @@ class P87Admission:
     if tick:
       self.factor = min(100, self.factor+10)
     if eps == 3 and eps_ns > self.request_ns:
+      if self.resuming:
+        self.resume_count += 1
+        self.last_resume_ns, self.resuming = now, False
       if self.cycling:
         self.cycle_count += 1
       self.active_since, self.cycling = now, False

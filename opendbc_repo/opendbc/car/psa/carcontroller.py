@@ -16,6 +16,7 @@ from opendbc.car.psa.psacan import (
 from opendbc.car.psa.values import CarControllerParams, CAR, LKAS_LIMITS, PSA_ADAS_BUS, PSA_5008_MIN_STEER_KPH, p87_torque_limit
 from opendbc.car.psa.p87_admission import P87Admission, lanes_ready
 from opendbc.car.psa.p87_eps_cycle import P87EpsCycleGate, native_hands_ok, PERIOD_NS, MAX_START_TORQUE, RAMP_DOWN
+from opendbc.car.psa.p87_driver_resume import P87DriverResumeGate
 
 try:
   import openpilot.cereal.messaging as messaging
@@ -83,6 +84,7 @@ class CarController(CarControllerBase):
     self.p87_last_lka_rejection_count = 0
     self.p87_admission = P87Admission()
     self.p87_cycle_gate = P87EpsCycleGate()
+    self.p87_resume_gate = P87DriverResumeGate()
     self.apply_torque = 0
     self.status = 2
     self.takeover_req = 0
@@ -475,7 +477,9 @@ class CarController(CarControllerBase):
     rejection_count = getattr(CS, 'p87_lka_rejection_count', 0)
     if rejection_count != self.p87_last_lka_rejection_count:
       self.apply_torque_scaled_last = 0
-      if self.p87_admission.cycling:
+      if self.p87_admission.resuming:
+        self.p87_admission.block('driver_resume_panda_rejected')
+      elif self.p87_admission.cycling:
         self.p87_admission.block('eps_cycle_panda_rejected')
       elif not self.p87_admission.blocked:
         self.p87_admission.reset()
@@ -509,6 +513,11 @@ class CarController(CarControllerBase):
       model = self.model_sm['modelV2']
     tick = self.frame % self.params.STEER_STEP == 0
     hands_ok = eps_fresh and native_hands_ok(CS)
+    resume_clear = self.p87_resume_gate.update(
+      now_nanos, pending=self.p87_admission.resuming, driver_torque=max(abs(CS.out.steeringTorque), abs(driver_raw)),
+      steering_pressed=bool(CS.out.steeringPressed), hands_ok=hands_ok,
+      model_valid=model_valid, model_ns=model_ns,
+    )
     expected_release = (self.p87_admission.cycling and self.p87_admission.phase != 'waiting_for_eps_ack'
                         and reason == 'eps_not_authorized' and CS.eps_state_lka == 0)
     cycle_clear = self.p87_cycle_gate.update(
@@ -533,6 +542,7 @@ class CarController(CarControllerBase):
       eps_ns=CS.p87_eps_timestamp, model_valid=model_valid, model_ns=model_ns, tick=tick,
       cycle_ready=cycle_ramping and self.apply_torque_scaled_last == 0,
       cycle_resume_ready=cycle_clear and CS.eps_state_lka in (1, 2),
+      driver_released=self.p87_resume_gate.released, driver_resume_ready=resume_clear,
     )
     allowed = reason is None and torque_allowed
     if self.frame % self.params.STEER_STEP == 0:
@@ -572,6 +582,9 @@ class CarController(CarControllerBase):
       'eps_active_since_ns': self.p87_admission.active_since, 'eps_cycle_started_ns': self.p87_admission.cycle_since,
       'eps_cycle_gate': self.p87_cycle_gate.reason, 'eps_cycle_due': bool(cycle_due),
       'eps_cycle_ramping_zero': bool(cycle_ramping), 'native_hands_confirmed': bool(hands_ok),
+      'driver_resume_in_progress': self.p87_admission.resuming, 'driver_resume_count': self.p87_admission.resume_count,
+      'driver_resume_attempts': self.p87_admission.resume_attempts, 'driver_resume_started_ns': self.p87_admission.resume_since,
+      'driver_resume_gate': self.p87_resume_gate.reason,
       'output_torque_raw': self.apply_torque_scaled_last, 'lka_status': self.status,
       'lka_factor': self.apply_torque_factor, 'stock_acc_active': bool(CS.out.cruiseState.enabled),
       'stock_longitudinal': getattr(CS, 'p87_stock_longitudinal', {}),

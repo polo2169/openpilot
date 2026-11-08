@@ -72,8 +72,8 @@ class TestAdmission(unittest.TestCase):
     self.step(1500, requested=False)
     self.assertEqual(self.step(1550)[0], 'validating_lanes')
 
-  def test_driver_blinker_and_low_speed_resume_require_validation_again(self):
-    for reason in ('driver_torque_override', 'driver_indicator', 'below_lateral_speed'):
+  def test_blinker_and_low_speed_resume_require_validation_again(self):
+    for reason in ('driver_indicator', 'below_lateral_speed'):
       self.admission = P87Admission()
       self.activate()
       self.assertEqual(self.step(500, reason=reason)[:3], (reason, 2, 0))
