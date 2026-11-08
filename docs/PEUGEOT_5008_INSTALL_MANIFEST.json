@@ -1,9 +1,9 @@
 {
-  "source_commit": "ea4746c81dce4bfb64ee2d2feb28140622a4d951",
+  "source_commit": "7dac793d78a3dc84cc00bb4309c07dfff5d84521",
   "openpilot_base": "8624e793c3b79ecf38975fd2d1028b505f271b28",
   "pinned_dependencies": {
     "msgq_repo": "e7396e76dadbb49e374d4b664ff6bbb43a39bcb0",
-    "opendbc_repo": "68c06c2253ccedc353a916f5a5bc09c21b7fac91",
+    "opendbc_repo": "b7579375e6a36be64b4319d8c9730ad8bab86c2d",
     "openpilot/sunnypilot/neural_network_data": "56aebacb53bf9515ddb2b3ebf07e4d89fea846e7",
     "panda": "ea5a83a956d61c7540c1a13a8d76f08c24675d1b",
     "rednose_repo": "28d4a7f69e80e1c3e0d24ca0733d7daeaeade3d0",
@@ -1086,11 +1086,11 @@
   "default_mode": "lateral-test",
   "full_comma_build_verified": false,
   "vehicle_lateral_validated": false,
-  "targeted_tests_passed": 119,
+  "targeted_tests_passed": 131,
   "pedal_fix_date": "2026-10-12",
   "rolling_identification_windows_passed": 197,
   "correction_date": "2026-10-13",
-  "previous_release": "dce1f1bcb68910dbad686be242fb1b718854b1c8",
+  "previous_release": "c15de92fa87af6cac4103532244ecb59d1af4b84",
   "controls_mismatch_threshold_frames": 200,
   "latest_trial_raw_capture_available": true,
   "software_lateral_min_kph": 30,
@@ -1121,5 +1121,10 @@
   "native_hands_stable_ms": 1000,
   "physical_cycle_validated": false,
   "native_safety_source_changed": false,
-  "correspondence_removed_date": "2026-11-06"
+  "correspondence_removed_date": "2026-11-06",
+  "runtime_v0_profile_update_date": "2026-11-08",
+  "p87_profile_log_version": 3,
+  "profile_applies_to_selected_v0": true,
+  "cycle_pre_request_wait_at_zero": true,
+  "cycle_deadlines_unchanged": true
 }

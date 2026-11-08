@@ -10,6 +10,9 @@ from opendbc.car.psa.values import CAR, p87_torque_limit
 from opendbc.car.vehicle_model import VehicleModel
 from openpilot.selfdrive.controls.lib import p87_torque
 from openpilot.selfdrive.controls.lib.latcontrol_torque import LatControlTorque, KI, KP_INTERP
+from openpilot.sunnypilot.selfdrive.controls.controlsd_ext import ControlsExt
+from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_v0 import LatControlTorque as LatControlTorqueV0
+from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_v0 import KI as V0_KI, KP_INTERP as V0_KP
 
 
 class InertExtension:
@@ -145,6 +148,88 @@ class TestP87Torque(unittest.TestCase):
         ci.CC.frame=step*5;ci.CC.model_sm.logMonoTime['modelV2']=now
         output,sends=ci.CC.update(cc.as_reader(),structs.CarControlSP(),state,now)
         self.assertEqual(len(sends),1)
+        self.assertTrue(native.safety.safety_tx_hook(native_fixture.make_msg(0,0x3F2,dat=sends[0].dat)))
+        nonzero|=output.torqueOutputCan!=0
+      self.assertTrue(nonzero)
+
+
+class TestP87RuntimeSelection(unittest.TestCase):
+  def selected(self, fingerprint=CAR.PSA_PEUGEOT_5008_P87, enforce=False, version=0.):
+    cp=CarInterface.get_non_essential_params(fingerprint).as_reader()
+    sp=CarInterface.get_non_essential_params_sp(cp,fingerprint);ci=CarInterface(cp,sp)
+    class RecordedParams:
+      def get_bool(self,key):return enforce if key=='EnforceTorqueControl' else False
+      def get(self,key):return version
+    with patch('openpilot.sunnypilot.selfdrive.controls.lib.nnlc.nnlc.Params',RecordedParams), \
+         patch('openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_jerk_aware.Params',RecordedParams), \
+         patch('openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_ext_override.Params',RecordedParams):
+      base=LatControlTorque(cp,sp,ci,.01)
+      selected=ControlsExt.initialize_lateral_control(SimpleNamespace(CP=cp,CP_SP=sp,params=RecordedParams()),base,ci,.01)
+    return selected,VehicleModel(cp)
+
+  def step(self,lac,vm,**kwargs):
+    return TestP87Torque.step(self,lac,vm,**kwargs)
+
+  def test_default_runtime_selector_returns_tuned_v0(self):
+    lac,_=self.selected()
+    self.assertIsInstance(lac,LatControlTorqueV0)
+    self.assertTrue(lac.p87_torque_tune)
+    self.assertEqual(lac.pid._k_p[1],[p*.5 for p in V0_KP])
+    self.assertEqual(lac.pid._k_i[1],[V0_KI*.5])
+    for enforce,version in ((True,0.),(True,1.)):
+      other,_=self.selected(enforce=enforce,version=version)
+      self.assertTrue(other.p87_torque_tune)
+
+  def test_other_vehicle_default_v0_is_unchanged(self):
+    lac,_=self.selected(CAR.PSA_PEUGEOT_3008)
+    self.assertIsInstance(lac,LatControlTorqueV0)
+    self.assertEqual(lac.pid._k_p[1],V0_KP)
+    self.assertEqual(lac.pid._k_i[1],[V0_KI])
+    self.assertAlmostEqual(lac.torque_params.friction,.210548,places=6)
+
+  def test_selected_v0_caps_live_manual_friction_and_refreshes_speed_limits(self):
+    lac,vm=self.selected();lac.update_torque_parameters(1.8,.08,.19)
+    self.assertAlmostEqual(lac.torque_params.friction,.07,places=6)
+    def override(params):params.friction=.3;return True
+    lac.extension.update_override_torque_params=override
+    for speed in (70.,110.,50.,130.):
+      self.step(lac,vm,speed=speed)
+      self.assertAlmostEqual(lac.torque_params.friction,.07,places=6)
+      self.assertAlmostEqual(lac.pid.pos_limit,lac.steer_max*lac.torque_params.latAccelFactor,places=6)
+
+  def test_selected_v0_real_pid_obeys_native_curve_both_directions(self):
+    for speed in (70.,110.,120.):
+      for direction in (-1,1):
+        lac,vm=self.selected();lac.update_torque_parameters(1.8,.08,.19)
+        for _ in range(100):
+          torque,_,state=self.step(lac,vm,speed=speed,desired=direction*3.)
+          raw_speed=structs.CarState(vEgoRaw=speed/3.6).vEgoRaw*3.6
+          self.assertLessEqual(abs(torque),p87_torque.normalized_limit(raw_speed)+1e-9)
+        self.assertEqual(state.version,3)
+        self.assertFalse(lac.extension._nnlc_enabled)
+
+  def test_selected_v0_inactive_output_is_zero_and_identifies_profile(self):
+    lac,vm=self.selected();self.step(lac,vm,desired=.4)
+    torque,_,state=self.step(lac,vm,active=False)
+    self.assertEqual(torque,0.)
+    self.assertEqual(state.version,3)
+
+  def test_selected_v0_commands_pass_actual_can_controller_and_panda(self):
+    from opendbc.car.psa.tests import test_5008 as host_fixture
+    from opendbc.safety.tests import test_psa_5008 as native_fixture
+    for speed in (70.,110.):
+      lac,vm=self.selected();lac.update_torque_parameters(1.8,.08,.19)
+      helper=host_fixture.TestP87Interface();ci=helper.interface(True)
+      native=native_fixture.TestP87Safety();native.setUp();nonzero=False
+      for step in range(70):
+        now=1_000_000_000+step*50_000_000
+        for _ in range(5):torque,_,_=self.step(lac,vm,speed=speed,desired=.3 if step//20%2 else -.3)
+        cc=structs.CarControl(enabled=True,latActive=True);cc.actuators.torque=float(torque)
+        eps=3 if ci.CC.p87_admission.request_ns else 2
+        native.safety.set_timer(100_000+step*50_000);native.feed(speed=speed,eps=eps)
+        state=helper.state(speed_kph=speed,eps_state_lka=eps,eps_active=eps==3,p87_lka_timestamp=now,p87_eps_timestamp=now)
+        ci.CC.frame=step*5;ci.CC.model_sm.logMonoTime['modelV2']=now
+        output,sends=ci.CC.update(cc.as_reader(),structs.CarControlSP(),state,now)
         self.assertTrue(native.safety.safety_tx_hook(native_fixture.make_msg(0,0x3F2,dat=sends[0].dat)))
         nonzero|=output.torqueOutputCan!=0
       self.assertTrue(nonzero)

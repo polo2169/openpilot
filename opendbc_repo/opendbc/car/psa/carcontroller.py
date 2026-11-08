@@ -509,7 +509,7 @@ class CarController(CarControllerBase):
       model = self.model_sm['modelV2']
     tick = self.frame % self.params.STEER_STEP == 0
     hands_ok = eps_fresh and native_hands_ok(CS)
-    expected_release = (self.p87_admission.cycling and self.p87_admission.phase == 'cycle_releasing'
+    expected_release = (self.p87_admission.cycling and self.p87_admission.phase != 'waiting_for_eps_ack'
                         and reason == 'eps_not_authorized' and CS.eps_state_lka == 0)
     cycle_clear = self.p87_cycle_gate.update(
       now_nanos, requested=bool(CC.latActive),
@@ -517,7 +517,13 @@ class CarController(CarControllerBase):
       eligible=reason is None or expected_release, hands_ok=hands_ok,
       car=CS.out, model=model, model_valid=model_valid, model_ns=model_ns,
     )
-    if self.p87_admission.cycling and not cycle_clear and (reason is None or expected_release):
+    # Before a new activation request, uncertain perception or native hands
+    # feedback postpones preparation at zero. Once a request is sent, loss of
+    # these gates aborts; neither its ACK clock nor the total clock is restarted.
+    cycle_wait = self.p87_cycle_gate.reason in ('curve_or_prediction_invalid', 'model_stale_or_invalid', 'validating_straight',
+                                               'hands_not_confirmed', 'validating_native_hands')
+    if (self.p87_admission.cycling and not cycle_clear and (reason is None or expected_release)
+        and (not cycle_wait or self.p87_admission.phase == 'waiting_for_eps_ack')):
       reason = 'eps_cycle_gate_lost'
     cycle_due = (self.p87_admission.phase == 'active' and self.p87_admission.active_since > 0
                  and now_nanos-self.p87_admission.active_since >= PERIOD_NS)
@@ -526,6 +532,7 @@ class CarController(CarControllerBase):
       now_nanos, requested=bool(CC.latActive), reason=reason, eps=CS.eps_state_lka,
       eps_ns=CS.p87_eps_timestamp, model_valid=model_valid, model_ns=model_ns, tick=tick,
       cycle_ready=cycle_ramping and self.apply_torque_scaled_last == 0,
+      cycle_resume_ready=cycle_clear and CS.eps_state_lka in (1, 2),
     )
     allowed = reason is None and torque_allowed
     if self.frame % self.params.STEER_STEP == 0:

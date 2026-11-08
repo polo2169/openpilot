@@ -183,6 +183,41 @@ class TestCycleAdmission(unittest.TestCase):
     self.admission.block('eps_cycle_panda_rejected')
     self.assertEqual(self.step(10500, eps=0, reason='eps_not_authorized')[0], 'eps_cycle_panda_rejected')
 
+  def test_short_model_change_during_release_waits_neutral_without_latching(self):
+    self.release()
+    self.assertEqual(self.step(10500, cycle_resume_ready=False)[0], 'cycle_releasing')
+    self.assertEqual(self.step(10550, eps=2, cycle_resume_ready=False, model_valid=False)[0], 'cycle_waiting_corridor')
+    self.assertFalse(self.admission.blocked)
+    for ms in range(10600, 10901, 50):
+      self.assertEqual(self.step(ms, eps=2, cycle_resume_ready=False)[1:3], (2,0))
+    for ms in range(10950, 11351, 50):self.assertFalse(self.step(ms,eps=2)[3])
+    self.assertEqual(self.admission.phase,'waiting_for_eps_ack')
+    self.assertTrue(self.step(11400)[3])
+    self.assertEqual(self.admission.cycle_count,1)
+
+  def test_model_wait_does_not_extend_original_total_deadline(self):
+    self.release()
+    for ms in range(10500,13451,50):result=self.step(ms,eps=2,cycle_resume_ready=False)
+    self.assertEqual(result[:3],('eps_cycle_timeout',2,0))
+    self.assertTrue(self.admission.blocked)
+
+  def test_observed_two_zero_two_release_sequence_cannot_prepare_while_unauthorized(self):
+    self.release()
+    self.step(10500,eps=2,cycle_resume_ready=False)
+    for ms in range(10550,11901,50):
+      result=self.step(ms,eps=0,reason='eps_not_authorized',cycle_resume_ready=False)
+      self.assertEqual(result[1:3],(2,0));self.assertFalse(self.admission.blocked)
+    for ms in range(11950,12351,50):self.assertFalse(self.step(ms,eps=2)[3])
+    self.assertEqual(self.admission.phase,'waiting_for_eps_ack')
+    self.assertTrue(self.step(12400)[3])
+
+  def test_model_loss_after_activation_request_does_not_restart_ack_wait(self):
+    self.release()
+    for ms in range(10500,10901,50):self.step(ms,eps=2)
+    self.assertEqual(self.admission.phase,'waiting_for_eps_ack')
+    self.assertFalse(self.step(10950,eps=2,model_valid=False,cycle_resume_ready=False)[3])
+    self.assertTrue(self.admission.blocked)
+
 
 class TestCycleControllerNative(unittest.TestCase):
   def run_cycle(self, interrupt=None, *, speed=90., direction=1, duration_ms=12500):
@@ -192,6 +227,7 @@ class TestCycleControllerNative(unittest.TestCase):
     cc = structs.CarControl(latActive=True, enabled=True); cc.actuators.torque = direction*.06
     statuses = []; previous = 0; cycle_zeros = 0; release_tick = None; max_reduction = 0
     interrupted = False
+    interrupt_started = None
     physical_eps, physical_hands, eps_stamp = 2, held(), 1_000_000_000
     for ms in range(0, duration_ms+1, 10):
       now = 1_000_000_000 + ms*1_000_000
@@ -203,12 +239,18 @@ class TestCycleControllerNative(unittest.TestCase):
       elif a.phase == 'cycle_releasing':
         if release_tick is None: release_tick = ms
         eps = 0 if ms-release_tick < 100 else 2
+      if interrupt=='release_transitions' and a.cycling and a.phase!='waiting_for_eps_ack':
+        elapsed=(now-a.cycle_since)/1e6
+        eps=3 if elapsed<150 else 2 if elapsed<250 else 0 if elapsed<1450 else 2
       changes = {}
-      if interrupt and a.cycling: interrupted = True
+      if interrupt and a.cycling and interrupt_started is None: interrupt_started=ms
+      interrupted = interrupt_started is not None
       if interrupted:
         if interrupt == 'hands': changes['is_dat_dira'] = dict(held(), STEERWHL_HOLD_BY_DRV=0)
         elif interrupt == 'panda': changes['p87_lka_rejection_count'] = 1
         elif interrupt == 'curve': ci.CC.model_sm.model.action.desiredCurvature = .01
+        elif interrupt == 'transient_model':
+          ci.CC.model_sm.valid['modelV2'] = ms-interrupt_started >= 60
       native.clock = now//1000; native.safety.set_timer(native.clock)
       if ms % 50 == 0:
         native.feed(eps=eps)
@@ -245,10 +287,21 @@ class TestCycleControllerNative(unittest.TestCase):
 
   def test_hands_loss_curve_and_panda_rejection_during_cycle_latch_neutral(self):
     for interrupt in ('hands', 'curve', 'panda'):
-      ci, _, _, _ = self.run_cycle(interrupt)
+      ci, _, _, _ = self.run_cycle(interrupt,duration_ms=16000)
       self.assertTrue(ci.CC.p87_admission.blocked, interrupt)
       self.assertEqual(ci.CC.apply_torque_scaled_last, 0)
       self.assertEqual(ci.CC.p87_admission.cycle_count, 0)
+
+  def test_transient_model_change_during_release_recovers_only_after_fresh_handshake(self):
+    ci,_,zeros,_=self.run_cycle('transient_model',duration_ms=15000)
+    self.assertFalse(ci.CC.p87_admission.blocked)
+    self.assertEqual(ci.CC.p87_admission.cycle_count,1)
+    self.assertGreater(zeros,30)
+
+  def test_real_recorded_release_pattern_waits_neutral_through_eps_zero(self):
+    ci,_,_,_=self.run_cycle('release_transitions',duration_ms=16000)
+    self.assertFalse(ci.CC.p87_admission.blocked)
+    self.assertEqual(ci.CC.p87_admission.cycle_count,1)
 
   def test_repeated_cycles_at_110_in_both_directions_restart_the_period_after_ack(self):
     for direction in (-1, 1):

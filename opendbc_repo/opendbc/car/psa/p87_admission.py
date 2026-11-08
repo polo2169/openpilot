@@ -42,7 +42,8 @@ class P87Admission:
     self.factor = 0
     self.cycling = False
 
-  def update(self, now, *, requested, reason, eps, eps_ns, model_valid, model_ns, tick, cycle_ready=False):
+  def update(self, now, *, requested, reason, eps, eps_ns, model_valid, model_ns, tick,
+             cycle_ready=False, cycle_resume_ready=True):
     clock_ok = type(now) is int and now > 0 and now >= self.last_clock
     gap = self.last_clock > 0 and now-self.last_clock > 150_000_000
     self.last_clock = now if clock_ok else self.last_clock
@@ -55,7 +56,7 @@ class P87Admission:
       self.block('eps_cycle_timeout')
     # EPS=0 can be a consequence of our own neutral release. It never starts
     # a cycle and cannot authorize preparation or torque. Fault states still veto.
-    if self.cycling and self.phase == 'cycle_releasing' and reason == 'eps_not_authorized' and eps == 0:
+    if self.cycling and self.phase != 'waiting_for_eps_ack' and reason == 'eps_not_authorized' and eps == 0:
       reason = None
     if reason:
       if reason in ('driver_torque_override', 'driver_indicator', 'below_lateral_speed') and not self.blocked and not self.cycling:
@@ -86,6 +87,16 @@ class P87Admission:
         return self.phase, 2, 0, False
       if eps not in (1, 2) or eps_ns <= self.cycle_since:
         return self.phase, 2, 0, False
+      self.phase = 'cycle_waiting_corridor'
+
+    # After an intentional neutral release, short prediction/lane changes
+    # postpone preparation at ZERO torque. The original total deadline and
+    # every hard gate still apply. Never restart an already sent ACK request.
+    if self.cycling and (not cycle_resume_ready or eps == 0) and self.phase != 'waiting_for_eps_ack':
+      self.phase = 'cycle_waiting_corridor'
+      self.clear_since = self.last_model = self.models = self.factor = 0
+      return self.phase, 2, 0, False
+    if self.phase == 'cycle_waiting_corridor':
       self.phase = 'validating_lanes'
 
     fresh_model = model_valid and 0 < model_ns <= now and now-model_ns <= MODEL_TIMEOUT_NS

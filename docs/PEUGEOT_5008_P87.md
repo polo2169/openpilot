@@ -1,13 +1,22 @@
-# Peugeot 5008 P87 — calmer PID and planned EPS renewal, 6 November 2026
+# Peugeot 5008 P87 — calmer PID and planned EPS renewal, 8 November 2026
 
 Installation: https://installer.comma.ai/polo2169/peugeot-5008-p87-cristianku
 
-The previous 3547d2d release successfully activated steering. Its new rlogs
-show repeated steering/yaw oscillation around 1 Hz, including intervals
-without native torque-ceiling saturation. This revision retains the softer P87
-feedback/friction response from f7e716e and adds planned EPS renewal. The resulting physical tracking
-still needs a vehicle comparison; no full comma-target build or device
-installation has been performed by this release process.
+The tested c15de92 route records torque controller version 0 on all 157,514
+controls samples. Sunnypilot's default runtime selector replaces the version-1
+controller with version 0. The previous P87 tuning was implemented only in
+version 1, so it did not affect the selected controller. This revision applies
+the P87 feedback/friction/dynamic-limit profile to the selected version 0 as
+well. Both paths identify the profile with torque-state log version 3.
+The actual default selector is now exercised in the regression tests.
+
+The 27 supplied rlogs match their diagnostic hashes. They show steering/yaw
+hunting, particularly around 1.3–1.8 Hz near 70 km/h. Two planned renewals
+both aborted after about 60 ms on changing perception, before EPS release
+finished. The release itself follows 3 -> 2 -> 0 -> 2; the last transition
+arrives about 1.45 s or 0.67 s after neutral in those two examples.
+These observations motivate the bounded zero-torque wait described below.
+The new physical tracking and renewal still require a vehicle comparison.
 
 The P87-only changes are:
 
@@ -16,7 +25,7 @@ The P87-only changes are:
   including after live parameter updates and manual overrides.
 - Internal PID output limits matched to the existing speed-dependent native
   steering ceiling, instead of calculating against a normalized +/-1.
-- Torque-state log version 2 identifies this P87 controller path.
+- Torque-state log version 3 identifies this P87 controller path.
 
 The learned acceleration factor and geometric feedforward are retained.
 Stored user preferences are not rewritten. The supplied route used standard
@@ -58,8 +67,9 @@ Renewal waits for speed >=50 km/h, fresh stable
 lanes and a straight current/predicted five-second corridor, small command
 magnitude (<=15 raw), and native hands indication stable for at least one
 second. Missing hands indication defers renewal; returning indication must
-pass the full stability checks again. Loss during renewal aborts it and
-requires a new engagement. Ordinary native hands monitoring remains effective.
+pass the full stability checks again. Before a new activation request,
+missing hands feedback keeps renewal neutral; after the request, loss
+aborts it. Ordinary native hands monitoring remains effective.
 
 On an eligible 20 Hz send, reduce command magnitude by at most four raw
 counts per tick until zero, send LKA=2/factor=0, and wait for a new physical
@@ -67,32 +77,39 @@ EPS=1/2. Only during this intentional release may EPS=0 be observed without
 immediately aborting; it cannot authorize preparation or torque. A release
 must arrive within one second. Revalidate for 300 ms and three distinct
 models, prepare at zero, request LKA=4 at zero and require a fresh EPS=3
-before ramping torque. The full renewal has a three-second budget, including
+before ramping torque. After the first released EPS=1/2 is observed, a
+temporary EPS=0 before the new request keeps output neutral and postpones
+preparation; it cannot authorize steering. The full renewal has a three-second budget, including
 the existing one-second first-ACK limit. Count only successful new ACKs.
 The driver must steer during the intentional zero-assistance interval.
 
-Faults, stale data, pedals, driver override, indicators or loss of the clear
-corridor/native hands feedback during renewal latch a neutral stop. An
-unsolicited EPS withdrawal cannot start a cycle. A rejected command during
-renewal also latches the stop; preserve the first cause for diagnosis.
-No artificial driver/hands messages are sent. Native authorization and
-driver-feedback checks remain required.
-Predictions do not guarantee the future corridor or physical handshake.
+CAN/EPS faults or stale feedback, pedals, driver override, indicators and
+Panda rejection still latch a neutral stop during renewal. Before a new
+LKA=4 request, transient perception/corridor uncertainty or missing native
+hands feedback waits at zero instead of aborting immediately. Preparation
+cannot restart until real EPS authorization, hands stability and fresh lane
+validation are restored. The original three-second deadline is never reset.
+Once LKA=4 has been requested, a gate loss or missing first ACK latches the
+stop; no automatic request retry extends that clock. Unsolicited active EPS
+withdrawal cannot start a cycle. No artificial driver/hands feedback is sent.
 
-Validation includes 119 targeted tests: the real PID and vehicle model,
-live/manual friction bounds, unaffected other PSA tuning, current dynamic
+Validation includes 131 targeted tests: the real PID and vehicle model,
+default/forced runtime selection of version 0 or 1, live/manual friction
+bounds, unaffected other PSA tuning, current dynamic
 limits, real controller/native safety integration, repeated planned cycles
 in both directions, abort/timeout checks, and the existing ACK,
-fault, pedal and rate-limit regressions. Native C is compiled for the tests.
-The 52 original rlogs match their supplied diagnostic hashes. A frozen-input
-comparison reconstructs the previous PID and shows weaker new requests;
+fault, pedal and rate-limit regressions. Tests also replay the observed
+release pattern and temporary model loss through the real host controller
+and native Panda checks. Native C is compiled for the tests.
+A version-0 frozen-input comparison reconstructs the installed PID and
+shows weaker new requests;
 it does not simulate the new vehicle trajectory or prove physical stability.
 The next test must check both reduced hunting and adequate tracking in bends.
 
 This revision changes host controller code. The matching Panda safety source
 is unchanged. Allow the normal on-device build and firmware-signature checks
-to finish before use. Rollback to installation commit f7e716e restores the
-calmer PID without planned renewal and with its matching source set. Keep
+to finish before use. Rollback to installation commit c15de92 restores the
+previous runtime response and renewal behavior with its matching source set. Keep
 normal firmware verification enabled.
 
 After parking at the end of the comparison, collect the read-only diagnostic:

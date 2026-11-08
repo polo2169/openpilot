@@ -8,6 +8,7 @@ from openpilot.common.constants import ACCELERATION_DUE_TO_GRAVITY
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.common.pid import PIDController
+from openpilot.selfdrive.controls.lib import p87_torque
 
 from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_ext import LatControlTorqueExt
 
@@ -37,10 +38,13 @@ VERSION = 0
 class LatControlTorque(LatControl):
   def __init__(self, CP, CP_SP, CI, dt):
     super().__init__(CP, CP_SP, CI, dt)
+    self.p87_torque_tune = CP.carFingerprint == p87_torque.FINGERPRINT
     self.torque_params = CP.lateralTuning.torque.as_builder()
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
     self.lateral_accel_from_torque = CI.lateral_accel_from_torque()
-    self.pid = PIDController([INTERP_SPEEDS, KP_INTERP], KI, KD, rate=1/self.dt)
+    kp = [value * p87_torque.KP_SCALE for value in KP_INTERP] if self.p87_torque_tune else KP_INTERP
+    ki = KI * p87_torque.KI_SCALE if self.p87_torque_tune else KI
+    self.pid = PIDController([INTERP_SPEEDS, kp], ki, KD, rate=1/self.dt)
     self.update_limits()
     self.steering_angle_deadzone_deg = self.torque_params.steeringAngleDeadzoneDeg
     self.lat_accel_request_buffer_len = int(LAT_ACCEL_REQUEST_BUFFER_SECONDS / self.dt)
@@ -57,6 +61,8 @@ class LatControlTorque(LatControl):
     self.update_limits()
 
   def update_limits(self):
+    if self.p87_torque_tune:
+      self.torque_params.friction = p87_torque.friction_limit(self.torque_params.friction)
     self.pid.set_limits(self.lateral_accel_from_torque(self.steer_max, self.torque_params),
                         self.lateral_accel_from_torque(-self.steer_max, self.torque_params))
 
@@ -64,6 +70,13 @@ class LatControlTorque(LatControl):
     # Override torque params from extension
     if self.extension.update_override_torque_params(self.torque_params):
       self.update_limits()
+
+    if self.p87_torque_tune:
+      ceiling = p87_torque.normalized_limit(CS.vEgoRaw * 3.6)
+      if ceiling != self.steer_max:
+        self.steer_max = ceiling
+        self.update_limits()
+        self.extension.update_limits()
 
     pid_log = log.ControlsState.LateralTorqueState.new_message()
     pid_log.version = VERSION
@@ -123,6 +136,9 @@ class LatControlTorque(LatControl):
       pid_log.desiredLateralAccel = float(setpoint)
       pid_log.desiredLateralJerk = float(desired_lateral_jerk)
       pid_log.saturated = bool(self._check_saturation(self.steer_max - abs(output_torque) < 1e-3, CS, steer_limited_by_safety, curvature_limited))
+
+    if self.p87_torque_tune:
+      pid_log.version = p87_torque.LOG_VERSION
 
     # TODO left is positive in this convention
     return -output_torque, 0.0, pid_log
