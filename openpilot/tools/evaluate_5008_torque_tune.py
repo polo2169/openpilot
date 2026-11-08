@@ -24,10 +24,15 @@ def main():
   p.add_argument('--features',type=Path,required=True)
   p.add_argument('--openpilot-root',type=Path,required=True)
   p.add_argument('--output',type=Path,required=True)
+  p.add_argument('--baseline-version',type=int,choices=(0,1),required=True,help='Actual torqueState.version from the recorded controller')
   args=p.parse_args()
   sys.path[:0]=[str((args.openpilot_root/'opendbc_repo').resolve()),str(args.openpilot_root.resolve())]
   from openpilot.common.pid import PIDController
   from openpilot.selfdrive.controls.lib import p87_torque
+  if args.baseline_version == 0:
+    from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_v0 import INTERP_SPEEDS, KP_INTERP, KI
+  else:
+    from openpilot.selfdrive.controls.lib.latcontrol_torque import INTERP_SPEEDS, KP_INTERP, KI
   meta=json.loads((args.features/'metadata.json').read_text());z=np.load(args.features/'streams.npz')
   F={k:{v:i for i,v in enumerate(cols)} for k,cols in meta['fields'].items()}
   a=z['control'];t=a[:,0];K=F['control']
@@ -35,15 +40,19 @@ def main():
   v=car[:,F['car']['speed']]/3.6
   active=(a[:,K['active']]>0)&(command[:,F['command']['lat_active']]>0)&np.isfinite(tp).all(axis=1)&np.isfinite(car).all(axis=1)
   factor=tp[:,F['torque_params']['factor']];friction=tp[:,F['torque_params']['friction']]
-  baseline_reconstructed=-(a[:,K['p']]+a[:,K['i']]+a[:,K['d']]+a[:,K['f']])/factor
+  if 'version' in K:
+    assert np.all(a[active,K['version']]==args.baseline_version), 'Mixed or unexpected recorded controller versions'
+  baseline_reconstructed=-np.clip(a[:,K['p']]+a[:,K['i']]+a[:,K['d']]+a[:,K['f']],-factor,factor)/factor
   # Both optional torque-space extensions were disabled in the supplied route.
   params=meta['selected_params'][0]
   assert params.get('NeuralNetworkLateralControl')=='0'
   assert params.get('LateralJerkTorqueController')=='0'
-  old_ff_friction=np.clip((a[:,K['error']]+.3*a[:,K['jerk']])/.2,-1.,1.)*friction*factor
+  friction_input=a[:,K['error']] if args.baseline_version == 0 else a[:,K['error']]+.3*a[:,K['jerk']]
+  threshold=.3 if args.baseline_version == 0 else .2
+  old_ff_friction=np.clip(friction_input/threshold,-1.,1.)*friction*factor
   new_ff=a[:,K['f']]-old_ff_friction+old_ff_friction*np.minimum(friction,p87_torque.MAX_FRICTION)/friction
   candidate=np.zeros(len(a));candidate_i=np.zeros(len(a))
-  pid=PIDController([[1,1.5,2,3,5,7.5,10,15,30],[x*p87_torque.KP_SCALE for x in (250,120,65,30,11.5,5.5,3.5,2.,.8)]],.15*p87_torque.KI_SCALE)
+  pid=PIDController([INTERP_SPEEDS,[x*p87_torque.KP_SCALE for x in KP_INTERP]],KI*p87_torque.KI_SCALE)
   previous=False
   for i in range(len(a)):
     if not active[i]:
@@ -62,17 +71,18 @@ def main():
   valid=active&(eps[:,F['eps']['state']]==3)&(car[:,F['car']['can_valid']]>0)
   baseline=command[:,F['command']['torque']]
   report={'scope':'Frozen recorded errors, perception, torque estimates and freeze decisions; no changed steering trajectory or physical EPS response is simulated.',
+    'recorded_controller_version':args.baseline_version,
     'profile':{'kp_scale':p87_torque.KP_SCALE,'ki_scale':p87_torque.KI_SCALE,'max_friction_normalized':p87_torque.MAX_FRICTION},
     'baseline_reconstruction_absolute_error':quantiles(abs(baseline_reconstructed[valid]-a[valid,K['output']])),
     'speed_groups':[],'frequency_windows':[]}
-  for speed in (90,110):
+  for speed in (70,90,110,120):
     m=valid&(abs(v*3.6-speed)<5)
     old=abs(baseline[m])*150.;new=abs(candidate[m])*150.
     report['speed_groups'].append({'speed_center_kph':speed,'samples':int(m.sum()),
       'baseline_request_abs_raw':quantiles(old),'candidate_request_abs_raw':quantiles(new),
       'baseline_request_rms_raw':float(np.sqrt(np.mean(old**2))),'candidate_request_rms_raw':float(np.sqrt(np.mean(new**2))),
       'actual_lateral_accel':quantiles(a[m,K['actual']]),'desired_lateral_accel':quantiles(a[m,K['desired']])})
-  for start,end in ((580,620),(1490,1530),(1540,1580),(1600,1640),(1680,1720),(1720,1760)):
+  for start,end in ((350,370),(380,400),(720,740),(780,800),(1210,1230),(1380,1400)):
     m=valid&(t>=start)&(t<end)
     tx=t[m];x=-car[m,F['car']['yaw']]*v[m]
     if len(x)<1000:

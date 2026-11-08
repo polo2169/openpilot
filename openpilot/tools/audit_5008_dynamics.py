@@ -13,7 +13,7 @@ import numpy as np
 
 FIELDS = {
   'car': 't valid speed angle rate yaw driver pressed gas brake acc blinker can_valid can_timeout steer_fault'.split(),
-  'control': 't valid active desired actual error p i d f output saturated curvature jerk'.split(),
+  'control': 't valid active desired actual error p i d f output saturated curvature jerk version'.split(),
   'command': 't valid enabled lat_active torque'.split(),
   'output': 't valid torque raw'.split(),
   'eps': 't state byte0 byte1 byte2 byte3'.split(),
@@ -60,7 +60,7 @@ def main():
         elif kind == 'controlsState' and e.controlsState.lateralControlState.which() == 'torqueState':
           c = e.controlsState; q = c.lateralControlState.torqueState
           rows['control'].extend((t,e.valid,q.active,q.desiredLateralAccel,q.actualLateralAccel,q.error,
-            q.p,q.i,q.d,q.f,q.output,q.saturated,c.desiredCurvature,q.desiredLateralJerk))
+            q.p,q.i,q.d,q.f,q.output,q.saturated,c.desiredCurvature,q.desiredLateralJerk,q.version))
         elif kind == 'carControl':
           c=e.carControl; rows['command'].extend((t,e.valid,c.enabled,c.latActive,c.actuators.torque))
         elif kind == 'carOutput':

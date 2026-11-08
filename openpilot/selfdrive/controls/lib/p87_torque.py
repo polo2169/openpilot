@@ -1,4 +1,4 @@
-"""Conservative P87 PID response for the measured 0.9–1 Hz steering hunting.
+"""Conservative P87 PID response for the measured steering hunting.
 
 Raw CAN ceilings and driver/EPS authority remain owned by the car controller
 and Panda. This profile only reduces the host's feedback/friction response.
@@ -12,7 +12,7 @@ FINGERPRINT = 'PSA_PEUGEOT_5008_P87'
 KP_SCALE = .5
 KI_SCALE = .5
 MAX_FRICTION = .07  # normalized torque: at most 10.5 raw counts at scale 150
-LOG_VERSION = 2
+LOG_VERSION = 3  # shared marker for the P87 profile in both selected PID versions
 
 
 def friction_limit(value):
