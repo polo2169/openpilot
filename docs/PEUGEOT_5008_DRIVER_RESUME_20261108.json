@@ -1,0 +1,44 @@
+{
+  "date": "2026-11-08",
+  "baseline_installation_commit": "9313a7d528dcabad77022291fed1c800d39c74f1",
+  "baseline_source_commit": "7dac793d78a3dc84cc00bb4309c07dfff5d84521",
+  "baseline_opendbc_commit": "b7579375e6a36be64b4319d8c9730ad8bab86c2d",
+  "automatic_driver_resume_added": true,
+  "arms_only_after_authorized_active_driver_override": true,
+  "trigger_driver_torque_raw": 45,
+  "driver_release_threshold_raw": 30,
+  "driver_release_stable_ms": 300,
+  "native_hands_stable_ms": 1000,
+  "model_max_age_ms": 150,
+  "lane_validation_stable_ms": 300,
+  "minimum_distinct_lane_models": 3,
+  "preparation_zero_torque_ms": 100,
+  "first_ack_timeout_ms": 1000,
+  "maximum_uncleared_driver_ms": 2000,
+  "total_resume_budget_ms": 5000,
+  "repeat_override_cooldown_after_success_ms": 5000,
+  "eps_zero_before_new_request": "Neutral waiting only after an armed driver pause; requires real released EPS 1/2 and a new physical EPS 3 ACK before torque.",
+  "failed_resume_retry_without_reengagement": false,
+  "request_off_cancels_background_resume": true,
+  "native_safety_source_changed": false,
+  "p87_profile_log_version": 3,
+  "torque_curve_raw": {
+    "speed_kph": [
+      50,
+      130
+    ],
+    "ceiling": [
+      90,
+      40
+    ]
+  },
+  "targeted_tests_passed": 152,
+  "validation_log_sha256": {
+    "source-tests.log": "6b8e29fa73923426a9b3ac871d433aacaef4aa1d1867057f7817064c9362750d",
+    "install-tests.log": "701b85353cd938a1ef8069b746054568e730b9e6c94fa85c66f706f2b196029a"
+  },
+  "full_comma_build_verified": false,
+  "physical_driver_resume_validated": false,
+  "new_physical_steering_validated": false,
+  "opendbc_commit": "c399a4ee21393bf164d4996996f930aa95e062ae"
+}
