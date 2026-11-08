@@ -15,7 +15,7 @@ from opendbc.car.psa.psacan import (
 )
 from opendbc.car.psa.values import CarControllerParams, CAR, LKAS_LIMITS, PSA_ADAS_BUS, PSA_5008_MIN_STEER_KPH, p87_torque_limit
 from opendbc.car.psa.p87_admission import P87Admission, lanes_ready
-from opendbc.car.psa.p87_eps_cycle import P87EpsCycleGate, native_hands_ok, PERIOD_NS, MAX_START_TORQUE, RAMP_DOWN
+from opendbc.car.psa.p87_eps_cycle import P87EpsCycleGate, native_hands_ok, native_eps_status_ok, PERIOD_NS, MAX_START_TORQUE, RAMP_DOWN
 from opendbc.car.psa.p87_driver_resume import P87DriverResumeGate
 
 try:
@@ -515,7 +515,7 @@ class CarController(CarControllerBase):
     hands_ok = eps_fresh and native_hands_ok(CS)
     resume_clear = self.p87_resume_gate.update(
       now_nanos, pending=self.p87_admission.resuming, driver_torque=max(abs(CS.out.steeringTorque), abs(driver_raw)),
-      steering_pressed=bool(CS.out.steeringPressed), hands_ok=hands_ok,
+      steering_pressed=bool(CS.out.steeringPressed), eps_status_ok=eps_fresh and native_eps_status_ok(CS),
       model_valid=model_valid, model_ns=model_ns,
     )
     expected_release = (self.p87_admission.cycling and self.p87_admission.phase != 'waiting_for_eps_ack'

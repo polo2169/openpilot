@@ -1,0 +1,63 @@
+{
+  "date": "2026-11-08",
+  "baseline_installation_commit": "b336c94014c484d577d8b220b33a5633cd79b2f8",
+  "change": "Remove the inferred EPS driver-activity requirement from bounded driver-override resumption only.",
+  "driver_activity_signal": "IS_DAT_DIRA.STEERWHL_HOLD_BY_DRV",
+  "driver_resume_activity_confirmation_required": false,
+  "driver_activity_or_hands_feedback_fabricated": false,
+  "eps_torque_limit_and_reboot_flags_must_be_known_zero": true,
+  "driver_release_stable_ms": 300,
+  "minimum_distinct_lane_models": 3,
+  "lane_validation_stable_ms": 300,
+  "preparation_zero_torque_ms": 100,
+  "fresh_physical_eps_ack_required": true,
+  "total_resume_budget_ms": 5000,
+  "native_safety_source_changed": false,
+  "planned_eps_cycle_activity_gate_unchanged": true,
+  "torque_curve_raw": {
+    "speed_kph": [
+      50,
+      130
+    ],
+    "ceiling": [
+      90,
+      40
+    ]
+  },
+  "targeted_tests_passed": 154,
+  "source_and_installation_layouts_pass": true,
+  "native_integration_cases": {
+    "speeds_kph": [
+      70,
+      110
+    ],
+    "directions": [
+      -1,
+      1
+    ],
+    "driver_activity_cases": [
+      "continuously_zero",
+      "intermittent",
+      "missing",
+      "falls_after_new_request"
+    ],
+    "preserved_vetoes": [
+      "held_driver_effort",
+      "torque_limit",
+      "reboot_request",
+      "invalid_model",
+      "fault",
+      "brake",
+      "panda_rejection",
+      "cancel",
+      "unsolicited_eps_withdrawal"
+    ]
+  },
+  "validation_log_sha256": {
+    "source-tests.log": "29efbd8d44ddf41621576d74ef14e99b115d7c19af7e969c17a7baa32b0cbd99",
+    "candidate-tests.log": "2dc0cd4419cde670dd6b4c68d2854ad60e127d70b81275bba3257f66d04582e5"
+  },
+  "full_comma_build_verified": false,
+  "physical_driver_resume_validated": false,
+  "opendbc_commit": "e863376c7ec32c38ffe924902d0b13be07451900"
+}

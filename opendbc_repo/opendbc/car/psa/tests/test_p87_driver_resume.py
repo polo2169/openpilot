@@ -1,9 +1,11 @@
 import math
+from types import SimpleNamespace
 import unittest
 
 from opendbc.car import structs
 from opendbc.car.psa.p87_admission import P87Admission
 from opendbc.car.psa.p87_driver_resume import P87DriverResumeGate
+from opendbc.car.psa.p87_eps_cycle import native_eps_status_ok
 from opendbc.car.psa.tests import test_5008 as host_fixture
 from opendbc.car.psa.tests.test_p87_eps_cycle import prediction, held
 from opendbc.safety.tests import test_psa_5008 as native_fixture
@@ -16,14 +18,30 @@ class TestDriverResumeGate(unittest.TestCase):
 
   def step(self, ms, **changes):
     now = 1_000_000_000 + ms*1_000_000
-    args = dict(pending=True, driver_torque=0., steering_pressed=False, hands_ok=True,
+    args = dict(pending=True, driver_torque=0., steering_pressed=False, eps_status_ok=True,
                 model_valid=True, model_ns=now)
     args.update(changes)
     return self.gate.update(now, **args)
 
-  def test_real_hands_and_released_driver_need_stability(self):
-    for ms in range(0, 1000, 10): self.assertFalse(self.step(ms))
-    self.assertTrue(self.step(1000))
+  def test_released_driver_still_needs_three_hundred_ms(self):
+    for ms in range(0, 300, 10): self.assertFalse(self.step(ms))
+    self.assertTrue(self.step(300))
+
+  def test_eps_limit_and_reboot_flags_are_independent_of_driver_activity(self):
+    for activity in (0, 1, None):
+      signals = held()
+      if activity is None: signals.pop('STEERWHL_HOLD_BY_DRV')
+      else: signals['STEERWHL_HOLD_BY_DRV'] = activity
+      self.assertTrue(native_eps_status_ok(SimpleNamespace(is_dat_dira=signals)))
+      for flag in ('TRQ_LIMIT_STATE', 'STEERING_REBOOT_REQUEST'):
+        for value in (1, None):
+          changed = dict(signals)
+          if value is None: changed.pop(flag)
+          else: changed[flag] = value
+          self.assertFalse(native_eps_status_ok(SimpleNamespace(is_dat_dira=changed)))
+    self.assertFalse(native_eps_status_ok(SimpleNamespace()))
+    for ms in range(0, 1501, 50): self.assertFalse(self.step(ms, eps_status_ok=False))
+    self.assertEqual(self.gate.reason, 'eps_status_not_ready')
 
   def test_release_hysteresis_is_lower_than_override_and_uses_steering_pressed(self):
     for torque in (31., 45., -48., math.nan, math.inf):
@@ -35,14 +53,11 @@ class TestDriverResumeGate(unittest.TestCase):
     for ms in range(0, 1001, 50): result = self.step(ms, driver_torque=-30.)
     self.assertTrue(result)
 
-  def test_repeated_effort_restarts_release_stability_without_inventing_hands(self):
+  def test_repeated_effort_restarts_release_stability(self):
     for ms in range(0, 1001, 50): self.step(ms)
     self.assertFalse(self.step(1050, driver_torque=-48.))
     for ms in range(1100, 1400, 50): self.assertFalse(self.step(ms))
     self.assertTrue(self.step(1400))
-    self.assertFalse(self.step(1450, hands_ok=False))
-    for ms in range(1500, 2500, 50): self.assertFalse(self.step(ms))
-    self.assertTrue(self.step(2500))
 
   def test_stale_invalid_future_models_and_request_off_withdraw_readiness(self):
     for change in ({'model_valid': False}, {'model_ns': 0}, {'model_ns': 4_000_000_000}, {'pending': False}):
@@ -124,7 +139,7 @@ class TestDriverResumeAdmission(unittest.TestCase):
       self.assertFalse(self.step(2550,eps=2)[3])
       self.assertEqual(self.admission.resume_attempts,1)
 
-  def test_model_or_hands_uncertainty_cannot_extend_total_five_seconds(self):
+  def test_missing_readiness_cannot_extend_total_five_seconds(self):
     self.pause()
     for ms in range(550,5501,50):
       result=self.step(ms,eps=2,driver_resume_ready=False)
@@ -192,12 +207,19 @@ class TestDriverResumeControllerNative(unittest.TestCase):
     helper=host_fixture.TestP87Interface();ci=helper.interface(True);ci.CC.model_sm.model=prediction()
     native=native_fixture.TestP87Safety();native.setUp()
     cc=structs.CarControl(latActive=True,enabled=True);cc.actuators.torque=direction*.12
-    physical_eps=2;stamp=1_000_000_000;actual_torque=[];pause_torques=[]
+    physical_eps=2;stamp=1_000_000_000;actual_torque=[];pause_torques=[];activity_lost=False
     for ms in range(0,7501,10):
       now=1_000_000_000+ms*1_000_000;a=ci.CC.p87_admission
       raw_driver=direction*48. if 1510<=ms<1530 or (condition=='held' and ms>=1510) else 0.
       model_valid=not(condition=='model' and ms>=1500)
-      hands=not(condition=='hands' and ms>=1500)
+      if condition=='activity_lost_after_request' and a.resuming and a.phase=='waiting_for_eps_ack':
+        activity_lost=True
+      activity=not(condition=='activity_absent' or activity_lost)
+      if condition=='activity_intermittent':activity=bool((ms//100)%2)
+      signals=dict(held(),STEERWHL_HOLD_BY_DRV=int(activity))
+      if condition=='activity_unknown':signals.pop('STEERWHL_HOLD_BY_DRV')
+      if condition=='trq_limit' and ms>=1500:signals['TRQ_LIMIT_STATE']=1
+      if condition=='reboot' and ms>=1500:signals['STEERING_REBOOT_REQUEST']=1
       ci.CC.model_sm.valid['modelV2']=model_valid
       fault=condition=='fault' and ms>=1700;brake=condition=='brake' and ms>=1700
       request=not(condition=='cancel' and ms>=1700)
@@ -211,7 +233,7 @@ class TestDriverResumeControllerNative(unittest.TestCase):
         native.feed(speed=speed,eps=eps,driver=raw_driver/3,fault=int(fault),brake=int(brake))
         physical_eps,stamp=eps,now
         native.safety.safety_rx_hook(native.packer.make_can_msg_safety('IS_DAT_DIRA',0,
-          dict(held(),STEERWHL_HOLD_BY_DRV=int(hands),EPS_STATE_LKA=eps)))
+          dict(signals,EPS_STATE_LKA=eps)))
         ci.CC.model_sm.logMonoTime['modelV2']=now
       else:
         native.safety.set_timer(now//1000)
@@ -219,7 +241,7 @@ class TestDriverResumeControllerNative(unittest.TestCase):
       state=helper.state(speed_kph=speed,vEgo=speed/3.6,vEgoRaw=speed/3.6,
         eps_state_lka=physical_eps,eps_active=physical_eps==3,p87_eps_timestamp=stamp,p87_lka_timestamp=now,
         steeringTorque=raw_driver,p87_driver_torque_raw=raw_driver,
-        is_dat_dira=dict(held(),STEERWHL_HOLD_BY_DRV=int(hands)),accFaulted=fault,brakePressed=brake)
+        is_dat_dira=signals,accFaulted=fault,brakePressed=brake)
       if condition=='panda' and ms>=1700:state.p87_lka_rejection_count=1
       cc.latActive=request
       output,sends=ci.CC.update(cc.as_reader(),structs.CarControlSP(),state,now)
@@ -241,8 +263,18 @@ class TestDriverResumeControllerNative(unittest.TestCase):
         self.assertTrue(any(t!=0 for t in after))
         self.assertFalse(ci.CC.p87_admission.blocked)
 
-  def test_held_effort_missing_hands_or_models_never_returns_torque(self):
-    for condition in ('held','hands','model'):
+  def test_resume_without_asserted_or_stable_driver_activity_still_needs_real_ack(self):
+    for speed in (70.,110.):
+      for direction in (-1,1):
+        for condition in ('activity_absent','activity_intermittent','activity_unknown','activity_lost_after_request'):
+          ci,zero,after=self.run_resume(speed=speed,direction=direction,condition=condition)
+          self.assertEqual(ci.CC.p87_admission.resume_count,1,(speed,direction,condition))
+          self.assertTrue(zero);self.assertTrue(all(t==0 for t in zero))
+          self.assertTrue(any(t!=0 for t in after))
+          self.assertFalse(ci.CC.p87_admission.blocked)
+
+  def test_held_effort_eps_flags_or_missing_models_never_returns_torque(self):
+    for condition in ('held','trq_limit','reboot','model'):
       ci,_,after=self.run_resume(condition=condition)
       self.assertEqual(ci.CC.p87_admission.resume_count,0)
       self.assertTrue(ci.CC.p87_admission.blocked)

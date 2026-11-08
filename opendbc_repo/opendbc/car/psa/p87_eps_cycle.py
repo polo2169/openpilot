@@ -17,11 +17,15 @@ MAX_START_TORQUE = 15
 RAMP_DOWN = 4  # raw counts per 50 ms, within the existing native slew limits
 
 
+def native_eps_status_ok(state):
+  signals = getattr(state, 'is_dat_dira', {})
+  return (signals.get('TRQ_LIMIT_STATE') == 0 and
+          signals.get('STEERING_REBOOT_REQUEST') == 0)
+
+
 def native_hands_ok(state):
   signals = getattr(state, 'is_dat_dira', {})
-  return (signals.get('STEERWHL_HOLD_BY_DRV') == 1 and
-          signals.get('TRQ_LIMIT_STATE') == 0 and
-          signals.get('STEERING_REBOOT_REQUEST') == 0)
+  return signals.get('STEERWHL_HOLD_BY_DRV') == 1 and native_eps_status_ok(state)
 
 
 def straight_corridor(car, model):
