@@ -55,9 +55,9 @@ retain manual rearm. Software eligibility remains 30–140 km/h; this is not
 physical validation of steering below 50.
 
 Leave the car's Stay in Lane Assistance / LKA setting ON. Switching it OFF
-disables the assistance function, not merely its hands-warning sound. Native
-hands monitoring and the +/-45 raw driver-override threshold are retained.
-The route contains seven active-interval exits associated with effort above
+disables the assistance function, not merely its hands-warning sound. The car's native
+monitoring and the +/-45 raw driver-override threshold are retained.
+The route contains eight active-interval exits associated with effort above
 that threshold; it has not been increased to hide these interventions.
 
 This revision adds a planned EPS renewal opportunity after ten seconds of
@@ -103,8 +103,14 @@ this pause. Torque is immediately withdrawn using neutral LKA. Before the
 new request, EPS=0 may be observed while waiting at zero; unsolicited EPS
 loss from active assistance cannot arm recovery. Driver effort must fall to
 <=30 raw (including filtered and unfiltered signals), steeringPressed must
-clear, and this release must remain stable for 300 ms. Native hands feedback
-must remain confirmed for one second and lane perception must be fresh.
+clear, and this release must remain stable for 300 ms. Lane perception must
+be fresh. The EPS driver-activity bit STEERWHL_HOLD_BY_DRV is not a physical
+hands sensor and is no longer required to be asserted or stable for driver
+resumption. TRQ_LIMIT_STATE and STEERING_REBOOT_REQUEST must still be known
+and zero, with fresh physical EPS feedback. No return bit is forced or sent.
+The separate experimental scheduling gate for planned EPS renewal described
+above is unchanged; removing the driver-resume activity condition does not
+force a renewal when that scheduling gate is unavailable.
 Then revalidate lanes for 300 ms / three distinct models, observe a fresh
 released EPS=1/2 after the pause, prepare at zero and request a new physical
 EPS=3 ACK before applying the normal bounded torque ramp.
@@ -120,7 +126,7 @@ return requires manual reengagement to avoid repeated steering handovers.
 Successful returns, attempts, phase, timestamps and gate veto are logged in
 psa_p87_status. This feature has not yet been physically validated.
 
-Validation includes 152 targeted tests: the real PID and vehicle model,
+Validation includes 154 targeted tests: the real PID and vehicle model,
 default/forced runtime selection of version 0 or 1, live/manual friction
 bounds, unaffected other PSA tuning, current dynamic
 limits, real controller/native safety integration, repeated planned cycles
@@ -128,8 +134,11 @@ in both directions, abort/timeout checks, and the existing ACK,
 fault, pedal and rate-limit regressions. Tests also replay the observed
 release pattern and temporary model loss through the real host controller
 and native Panda checks. The bounded driver-return tests include actual
-CAN/native ACK, off-tick override pulses, release/hands stability, deadlines,
-request cancellation, repeated overrides and hard vetoes. Native C is
+CAN/native ACK, off-tick override pulses, released-effort stability, deadlines,
+request cancellation, repeated overrides and hard vetoes. Driver resumption
+is exercised with the activity bit zero, intermittent, absent and falling
+after the new request, while EPS torque-limit/reboot vetoes remain effective.
+Native C is
 compiled for the tests.
 A version-0 frozen-input comparison reconstructs the installed PID and
 shows weaker new requests;

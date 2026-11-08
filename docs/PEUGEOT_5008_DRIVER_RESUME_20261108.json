@@ -1,14 +1,13 @@
 {
   "date": "2026-11-08",
-  "baseline_installation_commit": "9313a7d528dcabad77022291fed1c800d39c74f1",
-  "baseline_source_commit": "7dac793d78a3dc84cc00bb4309c07dfff5d84521",
-  "baseline_opendbc_commit": "b7579375e6a36be64b4319d8c9730ad8bab86c2d",
+  "baseline_installation_commit": "b336c94014c484d577d8b220b33a5633cd79b2f8",
+  "baseline_source_commit": "453574f82af599d97c82dc2a445af0741fdc0331",
+  "baseline_opendbc_commit": "c399a4ee21393bf164d4996996f930aa95e062ae",
   "automatic_driver_resume_added": true,
   "arms_only_after_authorized_active_driver_override": true,
   "trigger_driver_torque_raw": 45,
   "driver_release_threshold_raw": 30,
   "driver_release_stable_ms": 300,
-  "native_hands_stable_ms": 1000,
   "model_max_age_ms": 150,
   "lane_validation_stable_ms": 300,
   "minimum_distinct_lane_models": 3,
@@ -32,13 +31,16 @@
       40
     ]
   },
-  "targeted_tests_passed": 152,
-  "validation_log_sha256": {
-    "source-tests.log": "6b8e29fa73923426a9b3ac871d433aacaef4aa1d1867057f7817064c9362750d",
-    "install-tests.log": "701b85353cd938a1ef8069b746054568e730b9e6c94fa85c66f706f2b196029a"
-  },
+  "targeted_tests_passed": 154,
   "full_comma_build_verified": false,
   "physical_driver_resume_validated": false,
   "new_physical_steering_validated": false,
-  "opendbc_commit": "c399a4ee21393bf164d4996996f930aa95e062ae"
+  "driver_activity_confirmation_required": false,
+  "eps_torque_limit_and_reboot_flags_must_be_known_zero": true,
+  "planned_eps_cycle_activity_gate_unchanged": true,
+  "validation_log_sha256": {
+    "source-tests.log": "29efbd8d44ddf41621576d74ef14e99b115d7c19af7e969c17a7baa32b0cbd99",
+    "candidate-tests.log": "2dc0cd4419cde670dd6b4c68d2854ad60e127d70b81275bba3257f66d04582e5"
+  },
+  "opendbc_commit": "e863376c7ec32c38ffe924902d0b13be07451900"
 }
