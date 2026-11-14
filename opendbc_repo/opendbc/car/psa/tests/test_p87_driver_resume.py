@@ -59,6 +59,23 @@ class TestDriverResumeGate(unittest.TestCase):
     for ms in range(1100, 1400, 50): self.assertFalse(self.step(ms))
     self.assertTrue(self.step(1400))
 
+  def test_confirmed_release_tolerates_light_contact_but_actual_override_resets_it(self):
+    for ms in range(0,301,50):self.step(ms)
+    for ms,torque in ((350,33.),(400,-33.),(450,45.),(2500,-45.)):
+      self.assertTrue(self.step(ms,driver_torque=torque))
+      self.assertTrue(self.gate.released)
+    self.assertFalse(self.step(2550,driver_torque=46.))
+    self.assertFalse(self.step(2600,driver_torque=33.))
+    for ms in range(2650,2950,50):self.assertFalse(self.step(ms))
+    self.assertTrue(self.step(2950))
+
+  def test_release_confirmation_cannot_survive_cancellation_or_steering_pressed(self):
+    for change in ({'pending':False},{'steering_pressed':True}):
+      self.gate=P87DriverResumeGate()
+      for ms in range(0,301,50):self.step(ms)
+      self.assertFalse(self.step(350,**change))
+      self.assertFalse(self.step(400,driver_torque=33.))
+
   def test_stale_invalid_future_models_and_request_off_withdraw_readiness(self):
     for change in ({'model_valid': False}, {'model_ns': 0}, {'model_ns': 4_000_000_000}, {'pending': False}):
       self.gate = P87DriverResumeGate()
@@ -207,10 +224,13 @@ class TestDriverResumeControllerNative(unittest.TestCase):
     helper=host_fixture.TestP87Interface();ci=helper.interface(True);ci.CC.model_sm.model=prediction()
     native=native_fixture.TestP87Safety();native.setUp()
     cc=structs.CarControl(latActive=True,enabled=True);cc.actuators.torque=direction*.12
-    physical_eps=2;stamp=1_000_000_000;actual_torque=[];pause_torques=[];activity_lost=False
+    physical_eps=2;stamp=1_000_000_000;actual_torque=[];pause_torques=[];activity_lost=False;new_request=False
     for ms in range(0,7501,10):
       now=1_000_000_000+ms*1_000_000;a=ci.CC.p87_admission
       raw_driver=direction*48. if 1510<=ms<1530 or (condition=='held' and ms>=1510) else 0.
+      if a.resuming and a.phase=='waiting_for_eps_ack':new_request=True
+      if (condition=='weak_after_release' and ms>=2200) or (condition=='weak_after_request' and new_request):
+        raw_driver=direction*33.
       model_valid=not(condition=='model' and ms>=1500)
       if condition=='activity_lost_after_request' and a.resuming and a.phase=='waiting_for_eps_ack':
         activity_lost=True
@@ -235,6 +255,7 @@ class TestDriverResumeControllerNative(unittest.TestCase):
         native.safety.safety_rx_hook(native.packer.make_can_msg_safety('IS_DAT_DIRA',0,
           dict(signals,EPS_STATE_LKA=eps)))
         ci.CC.model_sm.logMonoTime['modelV2']=now
+        if condition=='future_publications':ci.CC.model_sm.logMonoTime['modelV2']+=152_448
       else:
         native.safety.set_timer(now//1000)
         native.safety.safety_rx_hook(native.packer.make_can_msg_safety('STEERING',0,{'DRIVER_TORQUE':raw_driver/3}))
@@ -279,6 +300,16 @@ class TestDriverResumeControllerNative(unittest.TestCase):
       self.assertEqual(ci.CC.p87_admission.resume_count,0)
       self.assertTrue(ci.CC.p87_admission.blocked)
       self.assertTrue(all(t==0 for t in after))
+
+  def test_light_contact_and_sub_tick_publications_do_not_latch_false_resume_failures(self):
+    for direction in (-1,1):
+      for condition in ('weak_after_release','weak_after_request','future_publications'):
+        ci,zero,after=self.run_resume(direction=direction,condition=condition)
+        self.assertEqual(ci.CC.p87_admission.resume_count,1,(direction,condition))
+        self.assertFalse(ci.CC.p87_admission.blocked)
+        self.assertTrue(zero);self.assertTrue(all(t==0 for t in zero))
+        self.assertTrue(any(t!=0 for t in after))
+        if condition=='future_publications':self.assertGreater(ci.CC.p87_model_snapshot.deferrals,0)
 
   def test_fault_brake_rejection_cancel_and_unsolicited_eps_loss_never_resume(self):
     for condition in ('fault','brake','panda','cancel','eps0'):

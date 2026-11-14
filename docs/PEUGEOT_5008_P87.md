@@ -1,6 +1,43 @@
-# Peugeot 5008 P87 — runtime tuning and bounded driver resumption, 8 November 2026
+# Peugeot 5008 P87 — report 5 corrections, 14 November 2026
 
 Installation: https://installer.comma.ai/polo2169/peugeot-5008-p87-cristianku
+
+Report 5 confirms installation 6f534dc, 38 hash-matched rlogs and profile
+marker 3 on every torque-control sample. The selected default v0 tune was
+active. This revision identifies the profile with marker 4 on both PID paths.
+
+The recorded six driver-return attempts include one successful physical
+return. Two failed on light effort after a confirmed release; one failed
+because a model published 0.152 ms after the control tick was treated as
+invalid. The remaining two were interrupted by the indicator and brake.
+All ten active-episode exits are explained: six driver overrides, two
+planned EPS releases, one brake and one stock ACC cancellation. This does
+not establish that every future interruption will have the same causes.
+
+Model polling happens after the tick timestamp is captured. If a new frame
+is at most 20 ms newer than the tick, use only an already observed past
+snapshot, at most 150 ms old, until the new frame becomes current. Never
+accept the future frame itself. No past snapshot, excessive lead, reversed
+clock/model time, expiry or invalid current data cannot authorize lanes.
+The 300 ms and three-distinct-model requirements are not relaxed.
+
+After initial effort <=30 raw has been stable for 300 ms, light contact up
+to the unchanged +/-45 override threshold retains release confirmation.
+An actual override, steeringPressed or request-off clears it. This removes
+false held-effort stops on a brief +/-33 after a real release, including
+during the EPS ACK. Initial release above 30 is still refused. The original
+two-second uncleared-effort and five-second total budgets are unchanged.
+
+Residual hunting is observed around 1.5–1.9 Hz near 73 km/h and 0.7–0.9 Hz
+near 127 km/h. Proportional response is reduced another 30% relative to
+profile 3; friction compensation falls from 0.07 to 0.04 normalized torque.
+Integral gain, geometric feedforward, raw torque ceilings, driver priority
+and native slew limits are retained. Frozen-input command-band comparisons
+show lower oscillatory requests, not a simulated improvement of the actual
+vehicle trajectory. Physical comfort and bend tracking require another test.
+The planned EPS cycle keeps its existing policy and hard-intervention stops.
+
+The paragraphs about c15de92 below describe the earlier runtime diagnosis.
 
 The tested c15de92 route records torque controller version 0 on all 157,514
 controls samples. Sunnypilot's default runtime selector replaces the version-1
@@ -20,12 +57,12 @@ The new physical tracking, renewal and driver resumption require a vehicle compa
 
 The P87-only changes are:
 
-- Proportional and integral feedback gains multiplied by 0.5.
-- Normalized friction compensation capped at 0.07 (10.5 raw CAN counts),
+- Proportional feedback gain multiplied by 0.35; integral gain remains at 0.5.
+- Normalized friction compensation capped at 0.04 (6 raw CAN counts),
   including after live parameter updates and manual overrides.
 - Internal PID output limits matched to the existing speed-dependent native
   steering ceiling, instead of calculating against a normalized +/-1.
-- Torque-state log version 3 identifies this P87 controller path.
+- Torque-state log version 4 identifies this P87 controller path.
 
 The learned acceleration factor and geometric feedforward are retained.
 Stored user preferences are not rewritten. The supplied route used standard
@@ -103,7 +140,9 @@ this pause. Torque is immediately withdrawn using neutral LKA. Before the
 new request, EPS=0 may be observed while waiting at zero; unsolicited EPS
 loss from active assistance cannot arm recovery. Driver effort must fall to
 <=30 raw (including filtered and unfiltered signals), steeringPressed must
-clear, and this release must remain stable for 300 ms. Lane perception must
+clear, and this initial release must remain stable for 300 ms. Once confirmed,
+light contact up to +/-45 retains it; actual override, steeringPressed and
+request-off clear it. Lane perception must
 be fresh. The EPS driver-activity bit STEERWHL_HOLD_BY_DRV is not a physical
 hands sensor and is no longer required to be asserted or stable for driver
 resumption. TRQ_LIMIT_STATE and STEERING_REBOOT_REQUEST must still be known
@@ -126,7 +165,7 @@ return requires manual reengagement to avoid repeated steering handovers.
 Successful returns, attempts, phase, timestamps and gate veto are logged in
 psa_p87_status. This feature has not yet been physically validated.
 
-Validation includes 154 targeted tests: the real PID and vehicle model,
+Validation includes 164 targeted tests: the real PID and vehicle model,
 default/forced runtime selection of version 0 or 1, live/manual friction
 bounds, unaffected other PSA tuning, current dynamic
 limits, real controller/native safety integration, repeated planned cycles
@@ -138,8 +177,8 @@ CAN/native ACK, off-tick override pulses, released-effort stability, deadlines,
 request cancellation, repeated overrides and hard vetoes. Driver resumption
 is exercised with the activity bit zero, intermittent, absent and falling
 after the new request, while EPS torque-limit/reboot vetoes remain effective.
-Native C is
-compiled for the tests.
+The tests also cover causal model snapshots, expiry, future/reversed time,
+release hysteresis and oscillatory PID inputs. Native C is compiled for the tests.
 A version-0 frozen-input comparison reconstructs the installed PID and
 shows weaker new requests;
 it does not simulate the new vehicle trajectory or prove physical stability.
@@ -147,9 +186,8 @@ The next test must check both reduced hunting and adequate tracking in bends.
 
 This revision changes host controller code. The matching Panda safety source
 is unchanged. Allow the normal on-device build and firmware-signature checks
-to finish before use. Rollback to installation commit 9313a7d restores the
-calmer selected V0 and corrected cycle waits without this bounded driver
-resumption feature. Keep
+to finish before use. Rollback to installation commit 6f534dc restores profile 3 and the previous
+release/timestamp gates. Keep
 normal firmware verification enabled.
 
 After parking at the end of the comparison, collect the read-only diagnostic:

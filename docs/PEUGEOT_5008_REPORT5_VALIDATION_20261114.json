@@ -1,0 +1,116 @@
+{
+  "date": "2026-11-14",
+  "baseline_installation_commit": "6f534dcd1b7ca721ed158f8d29bffb785627dffe",
+  "baseline_source_commit": "48926fafbdc5aaa03e450eaab0eb1c3a5632c2f7",
+  "baseline_opendbc_commit": "e863376c7ec32c38ffe924902d0b13be07451900",
+  "rlog_segments_hash_verified": 38,
+  "missing_intermediate_segments": 0,
+  "end_of_route_independently_verified": false,
+  "recorded_controller_profile_version": 3,
+  "new_controller_profile_version": 4,
+  "recorded_default_controller": "sunnypilot torque v0",
+  "active_episode_exits": {
+    "brief_driver_override": 6,
+    "planned_eps_release": 2,
+    "brake": 1,
+    "stock_acc_inactive": 1
+  },
+  "recorded_driver_resume_attempts": 6,
+  "recorded_successful_driver_resumes": 1,
+  "recorded_failed_resume_reasons": {
+    "near_release_threshold_after_actual_release": 2,
+    "sub_tick_future_model_publication": 1,
+    "turn_signal": 1,
+    "brake": 1
+  },
+  "model_negative_age_diagnostic_samples": 101,
+  "model_max_observed_publication_lead_ms": 2.587916,
+  "failing_resume_publication_lead_ms": 0.152448,
+  "model_snapshot_policy": {
+    "future_frame_is_never_accepted": true,
+    "max_publication_lead_for_past_snapshot_fallback_ms": 20,
+    "past_snapshot_max_age_ms": 150,
+    "invalid_current_model_replaces_cached_valid_model": true,
+    "reversed_missing_large_future_and_expired_timestamps_rejected": true,
+    "distinct_model_and_stability_requirements_unchanged": true
+  },
+  "driver_release_policy": {
+    "initial_threshold_raw": 30,
+    "initial_stability_ms": 300,
+    "confirmation_retained_through_raw_magnitude": 45,
+    "actual_override_resets_confirmation": true,
+    "steering_pressed_resets_confirmation": true,
+    "request_off_resets_confirmation": true,
+    "driver_override_threshold_raised": false,
+    "held_effort_limit_ms": 2000,
+    "total_resume_budget_ms": 5000,
+    "fresh_physical_eps_ack_required": true
+  },
+  "torque_profile": {
+    "proportional_scale": 0.35,
+    "previous_proportional_scale": 0.5,
+    "integral_scale": 0.5,
+    "previous_integral_scale": 0.5,
+    "friction_ceiling_normalized": 0.04,
+    "previous_friction_ceiling_normalized": 0.07,
+    "raw_curve": {
+      "speed_kph": [
+        50,
+        130
+      ],
+      "ceiling": [
+        90,
+        40
+      ]
+    }
+  },
+  "frozen_input_oscillatory_command_comparison": [
+    {
+      "start_s": 420,
+      "end_s": 440,
+      "mean_speed_kph": 72.99594168325335,
+      "baseline_raw_band_rms": 11.058766166494033,
+      "candidate_raw_band_rms": 7.268811918325203,
+      "reduction_percent": 34.27104064874501
+    },
+    {
+      "start_s": 590,
+      "end_s": 610,
+      "mean_speed_kph": 108.01120542701557,
+      "baseline_raw_band_rms": 13.01441374356276,
+      "candidate_raw_band_rms": 9.012834983923215,
+      "reduction_percent": 30.747284038198195
+    },
+    {
+      "start_s": 830,
+      "end_s": 850,
+      "mean_speed_kph": 126.92610441460667,
+      "baseline_raw_band_rms": 27.207570480588053,
+      "candidate_raw_band_rms": 22.25718106666737,
+      "reduction_percent": 18.194896958744135
+    },
+    {
+      "start_s": 1140,
+      "end_s": 1160,
+      "mean_speed_kph": 107.61614704017178,
+      "baseline_raw_band_rms": 20.902767597100343,
+      "candidate_raw_band_rms": 15.551071791813186,
+      "reduction_percent": 25.602809677841666
+    }
+  ],
+  "comparison_scope": "Recorded inputs and freeze decisions; neither future vehicle trajectory nor physical EPS response is simulated.",
+  "targeted_tests_passed": 164,
+  "source_and_installation_layouts_pass": true,
+  "validation_log_sha256": {
+    "source-tests.log": "cdf5f452da6ba8d4fdd22c7acebbd75e4d6a7c846ce708ca33681008b400698f",
+    "candidate-tests.log": "64e0a7a48741aa949d9096214b1886a03c1074bfe6206bd1e90acf9bb22330e2"
+  },
+  "native_safety_source_changed": false,
+  "bundled_asset_hashes_verified": 267,
+  "periodic_eps_cycle_policy_changed": false,
+  "driver_activity_feedback_fabricated": false,
+  "full_comma_build_verified": false,
+  "physical_driver_resume_validated": false,
+  "new_physical_steering_validated": false,
+  "opendbc_commit": "6928bb101108077acdd4046277c5a88fc767dc69"
+}

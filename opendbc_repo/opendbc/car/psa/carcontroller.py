@@ -17,6 +17,7 @@ from opendbc.car.psa.values import CarControllerParams, CAR, LKAS_LIMITS, PSA_AD
 from opendbc.car.psa.p87_admission import P87Admission, lanes_ready
 from opendbc.car.psa.p87_eps_cycle import P87EpsCycleGate, native_hands_ok, native_eps_status_ok, PERIOD_NS, MAX_START_TORQUE, RAMP_DOWN
 from opendbc.car.psa.p87_driver_resume import P87DriverResumeGate
+from opendbc.car.psa.p87_model_snapshot import P87ModelSnapshot
 
 try:
   import openpilot.cereal.messaging as messaging
@@ -85,6 +86,7 @@ class CarController(CarControllerBase):
     self.p87_admission = P87Admission()
     self.p87_cycle_gate = P87EpsCycleGate()
     self.p87_resume_gate = P87DriverResumeGate()
+    self.p87_model_snapshot = P87ModelSnapshot()
     self.apply_torque = 0
     self.status = 2
     self.takeover_req = 0
@@ -511,6 +513,7 @@ class CarController(CarControllerBase):
                      self.model_sm.alive['modelV2'] and lanes_ready(self.model_sm['modelV2']))
       model_ns = self.model_sm.logMonoTime['modelV2']
       model = self.model_sm['modelV2']
+      model_valid, model_ns, model = self.p87_model_snapshot.select(now_nanos, model_valid, model_ns, model)
     tick = self.frame % self.params.STEER_STEP == 0
     hands_ok = eps_fresh and native_hands_ok(CS)
     resume_clear = self.p87_resume_gate.update(
@@ -577,6 +580,7 @@ class CarController(CarControllerBase):
       'panda_lka_rejections': rejection_count,
       'driver_torque_unfiltered_raw': driver_raw if finite else None,
       'admission_models': self.p87_admission.models, 'model_ns': model_ns,
+      'model_snapshot_mode': self.p87_model_snapshot.mode, 'model_publication_deferrals': self.p87_model_snapshot.deferrals,
       'eps_request_ns': self.p87_admission.request_ns, 'manual_rearm_required': self.p87_admission.blocked,
       'eps_cycle_count': self.p87_admission.cycle_count, 'eps_cycle_in_progress': self.p87_admission.cycling,
       'eps_active_since_ns': self.p87_admission.active_since, 'eps_cycle_started_ns': self.p87_admission.cycle_since,
