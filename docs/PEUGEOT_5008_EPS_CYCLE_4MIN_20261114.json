@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-14",
+  "baseline_installation_commit": "75eee01d44cd5a31661554406b344ab99b8817c3",
+  "baseline_source_commit": "efa7d3ac7589d2fc8404da066d26b171be03e45f",
+  "baseline_opendbc_commit": "6928bb101108077acdd4046277c5a88fc767dc69",
+  "previous_minimum_active_ms": 10000,
+  "minimum_active_ms": 240000,
+  "interval_starts_at": "Most recent accepted physical EPS activation acknowledgement; resets after a successful cycle or bounded driver resumption.",
+  "forced_deadline": false,
+  "early_release_before_minimum_interval": false,
+  "bend_defers_renewal": true,
+  "fresh_stable_straight_required_after_bend": true,
+  "straight_prediction_horizon_ms": 5000,
+  "maximum_current_and_predicted_lateral_accel_mps2": 0.3,
+  "minimum_cycle_speed_kph": 50,
+  "maximum_cycle_start_command_raw": 15,
+  "native_activity_stable_ms": 1000,
+  "native_activity_is_physical_hands_sensor": false,
+  "lane_stable_ms": 300,
+  "minimum_distinct_valid_lane_models": 3,
+  "model_max_age_ms": 150,
+  "ramp_down_raw_per_50_ms": 4,
+  "release_timeout_ms": 1000,
+  "total_cycle_budget_ms": 3000,
+  "zero_torque_preparation_ms": 100,
+  "new_physical_eps_ack_required": true,
+  "first_ack_timeout_ms": 1000,
+  "unsolicited_eps_withdrawal_does_not_start_cycle": true,
+  "native_safety_source_changed": false,
+  "driver_resume_policy_changed": false,
+  "torque_profile_log_version": 4,
+  "torque_curve_raw": {
+    "speed_kph": [
+      50,
+      130
+    ],
+    "ceiling": [
+      90,
+      40
+    ]
+  },
+  "targeted_tests_passed": 165,
+  "source_and_installation_layouts_pass": true,
+  "tests_exercise_full_four_minute_intervals": true,
+  "tests_cover_bend_at_four_minute_boundary_and_new_straight_validation": true,
+  "tests_cover_successive_intervals_after_new_ack_both_directions": true,
+  "bundled_asset_hashes_verified": 267,
+  "validation_log_sha256": {
+    "source-tests.log": "af8527ce7672d2d4ba93a604ad456b485e3025dc290955f3e557becdc304d66c",
+    "candidate-tests.log": "9cb7a1e9229f101d1c7503acde47bf20c3a3199464d7934ea161f059203151d4"
+  },
+  "full_comma_build_verified": false,
+  "physical_four_minute_renewal_validated": false,
+  "new_physical_steering_validated": false,
+  "opendbc_commit": "d1c26e716ae9df0031e76f63b30448267752eb6e"
+}

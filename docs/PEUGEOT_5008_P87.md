@@ -1,6 +1,17 @@
-# Peugeot 5008 P87 — report 5 corrections, 14 November 2026
+# Peugeot 5008 P87 — profile 4 and four-minute renewal, 14 November 2026
 
 Installation: https://installer.comma.ai/polo2169/peugeot-5008-p87-cristianku
+
+The minimum planned EPS renewal interval is now four minutes (240 seconds)
+from the most recent physical EPS activation ACK. It is an opportunity,
+not a forced deadline: at four minutes, an actual or predicted bend defers
+renewal until the existing stable straight-road gate is satisfied again.
+The five-second prediction horizon, >=50 km/h cycle floor, <=15 raw start
+command, native activity gate, bounded ramp to zero, released EPS feedback,
+lane validation and new physical ACK are retained. Successful renewal or
+bounded driver return starts a fresh four-minute interval. No cycle starts
+early to meet this interval, and no bend is bypassed when it elapses.
+
 
 Report 5 confirms installation 6f534dc, 38 hash-matched rlogs and profile
 marker 3 on every torque-control sample. The selected default v0 tune was
@@ -35,7 +46,8 @@ Integral gain, geometric feedforward, raw torque ceilings, driver priority
 and native slew limits are retained. Frozen-input command-band comparisons
 show lower oscillatory requests, not a simulated improvement of the actual
 vehicle trajectory. Physical comfort and bend tracking require another test.
-The planned EPS cycle keeps its existing policy and hard-intervention stops.
+The planned EPS cycle retains its straight-road and hard-intervention gates;
+its minimum interval is now four minutes as described above.
 
 The paragraphs about c15de92 below describe the earlier runtime diagnosis.
 
@@ -97,8 +109,8 @@ monitoring and the +/-45 raw driver-override threshold are retained.
 The route contains eight active-interval exits associated with effort above
 that threshold; it has not been increased to hide these interventions.
 
-This revision adds a planned EPS renewal opportunity after ten seconds of
-active assistance. Ten seconds is an experimental interval, not a measured
+This revision adds a planned EPS renewal opportunity after four minutes of
+active assistance. Four minutes is an experimental minimum interval, not a measured
 5008 deadline: the baseline physical EPS=3 interval lasts 297.5 seconds.
 Renewal waits for speed >=50 km/h, fresh stable
 lanes and a straight current/predicted five-second corridor, small command
@@ -165,7 +177,7 @@ return requires manual reengagement to avoid repeated steering handovers.
 Successful returns, attempts, phase, timestamps and gate veto are logged in
 psa_p87_status. This feature has not yet been physically validated.
 
-Validation includes 164 targeted tests: the real PID and vehicle model,
+Validation includes 165 targeted tests: the real PID and vehicle model,
 default/forced runtime selection of version 0 or 1, live/manual friction
 bounds, unaffected other PSA tuning, current dynamic
 limits, real controller/native safety integration, repeated planned cycles
@@ -177,6 +189,9 @@ CAN/native ACK, off-tick override pulses, released-effort stability, deadlines,
 request cancellation, repeated overrides and hard vetoes. Driver resumption
 is exercised with the activity bit zero, intermittent, absent and falling
 after the new request, while EPS torque-limit/reboot vetoes remain effective.
+The cycle/native integration tests exercise complete four-minute periods,
+no renewal at ten seconds, deferral through a bend at the four-minute boundary,
+fresh straight-road validation and successive periods after a new ACK.
 The tests also cover causal model snapshots, expiry, future/reversed time,
 release hysteresis and oscillatory PID inputs. Native C is compiled for the tests.
 A version-0 frozen-input comparison reconstructs the installed PID and
