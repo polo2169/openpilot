@@ -43,9 +43,9 @@ class TestP87Torque(unittest.TestCase):
     params=SimpleNamespace(angleOffsetDeg=0.,roll=0.)
     return lac.update(active,cs,vm,params,False,desired/cs.vEgo**2,None,False,.35)
 
-  def test_p87_halves_feedback_gains_without_changing_other_psa(self):
+  def test_p87_reduces_feedback_gains_without_changing_other_psa(self):
     p87,_=self.controller();other,_=self.controller(CAR.PSA_PEUGEOT_3008)
-    self.assertEqual(p87.pid._k_p[1],[p*.5 for p in KP_INTERP])
+    self.assertEqual(p87.pid._k_p[1],[p*.35 for p in KP_INTERP])
     self.assertEqual(p87.pid._k_i[1],[KI*.5])
     self.assertEqual(other.pid._k_p[1],KP_INTERP)
     self.assertEqual(other.pid._k_i[1],[KI])
@@ -56,7 +56,7 @@ class TestP87Torque(unittest.TestCase):
     lac.update_torque_parameters(1.8,.02,.19)
     self.assertAlmostEqual(lac.torque_params.latAccelFactor,1.8,places=6)
     self.assertAlmostEqual(lac.torque_params.latAccelOffset,.02,places=6)
-    self.assertAlmostEqual(lac.torque_params.friction,.07,places=6)
+    self.assertAlmostEqual(lac.torque_params.friction,.04,places=6)
 
   def test_manual_override_is_also_bounded(self):
     lac,vm=self.controller()
@@ -65,10 +65,10 @@ class TestP87Torque(unittest.TestCase):
       return True
     lac.extension.update_override_torque_params=override
     self.step(lac,vm)
-    self.assertAlmostEqual(lac.torque_params.friction,.07,places=6)
+    self.assertAlmostEqual(lac.torque_params.friction,.04,places=6)
 
   def test_friction_clamp_does_not_raise_a_smaller_value(self):
-    for value in (0.,.02,.05,.07):
+    for value in (0.,.02,.035,.04):
       self.assertEqual(p87_torque.friction_limit(value),value)
     for value in (math.nan,math.inf,-math.inf,-.2):
       self.assertEqual(p87_torque.friction_limit(value),0.)
@@ -174,7 +174,7 @@ class TestP87RuntimeSelection(unittest.TestCase):
     lac,_=self.selected()
     self.assertIsInstance(lac,LatControlTorqueV0)
     self.assertTrue(lac.p87_torque_tune)
-    self.assertEqual(lac.pid._k_p[1],[p*.5 for p in V0_KP])
+    self.assertEqual(lac.pid._k_p[1],[p*.35 for p in V0_KP])
     self.assertEqual(lac.pid._k_i[1],[V0_KI*.5])
     for enforce,version in ((True,0.),(True,1.)):
       other,_=self.selected(enforce=enforce,version=version)
@@ -187,14 +187,30 @@ class TestP87RuntimeSelection(unittest.TestCase):
     self.assertEqual(lac.pid._k_i[1],[V0_KI])
     self.assertAlmostEqual(lac.torque_params.friction,.210548,places=6)
 
+  def test_oscillating_error_produces_less_command_than_version_three_profile(self):
+    for speed, frequency in ((70.,1.6),(80.,1.6),(120.,.8),(130.,.8)):
+      with patch.object(p87_torque,'KP_SCALE',.5), patch.object(p87_torque,'MAX_FRICTION',.07):
+        old,old_vm=self.selected()
+        old.update_torque_parameters(1.8,0.,.2)
+      new,new_vm=self.selected();new.update_torque_parameters(1.8,0.,.2)
+      old_power=new_power=0.
+      for i in range(1200):
+        desired=.1*math.sin(2*math.pi*frequency*i*.01)
+        with patch.object(p87_torque,'MAX_FRICTION',.07):
+          old_torque,_,_=self.step(old,old_vm,speed=speed,desired=desired)
+        new_torque,_,_=self.step(new,new_vm,speed=speed,desired=desired)
+        if i>=200:
+          old_power+=old_torque**2;new_power+=new_torque**2
+      self.assertLess(new_power,old_power*.85**2,speed)
+
   def test_selected_v0_caps_live_manual_friction_and_refreshes_speed_limits(self):
     lac,vm=self.selected();lac.update_torque_parameters(1.8,.08,.19)
-    self.assertAlmostEqual(lac.torque_params.friction,.07,places=6)
+    self.assertAlmostEqual(lac.torque_params.friction,.04,places=6)
     def override(params):params.friction=.3;return True
     lac.extension.update_override_torque_params=override
     for speed in (70.,110.,50.,130.):
       self.step(lac,vm,speed=speed)
-      self.assertAlmostEqual(lac.torque_params.friction,.07,places=6)
+      self.assertAlmostEqual(lac.torque_params.friction,.04,places=6)
       self.assertAlmostEqual(lac.pid.pos_limit,lac.steer_max*lac.torque_params.latAccelFactor,places=6)
 
   def test_selected_v0_real_pid_obeys_native_curve_both_directions(self):
@@ -205,14 +221,14 @@ class TestP87RuntimeSelection(unittest.TestCase):
           torque,_,state=self.step(lac,vm,speed=speed,desired=direction*3.)
           raw_speed=structs.CarState(vEgoRaw=speed/3.6).vEgoRaw*3.6
           self.assertLessEqual(abs(torque),p87_torque.normalized_limit(raw_speed)+1e-9)
-        self.assertEqual(state.version,3)
+        self.assertEqual(state.version,4)
         self.assertFalse(lac.extension._nnlc_enabled)
 
   def test_selected_v0_inactive_output_is_zero_and_identifies_profile(self):
     lac,vm=self.selected();self.step(lac,vm,desired=.4)
     torque,_,state=self.step(lac,vm,active=False)
     self.assertEqual(torque,0.)
-    self.assertEqual(state.version,3)
+    self.assertEqual(state.version,4)
 
   def test_selected_v0_commands_pass_actual_can_controller_and_panda(self):
     from opendbc.car.psa.tests import test_5008 as host_fixture
