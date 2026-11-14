@@ -1,12 +1,12 @@
-"""P87 planned renewal opportunities requiring real native hands feedback.
+"""P87 planned renewal opportunities using native driver-activity feedback.
 
-Ten seconds is an experimental scheduling interval, not an observed EPS
-deadline. Defer in bends or without a fresh clear corridor. Require a stable
-native hands indication before renewal; never recover an unsolicited dropout.
+Four minutes is a minimum scheduling interval, not a forced EPS deadline.
+Defer in bends or without a fresh clear corridor. Require stable native
+activity before renewal; never recover an unsolicited dropout.
 """
 import math
 
-PERIOD_NS = 10_000_000_000
+PERIOD_NS = 240_000_000_000
 RELEASE_TIMEOUT_NS = 1_000_000_000
 TOTAL_TIMEOUT_NS = 3_000_000_000
 MODEL_TIMEOUT_NS = 150_000_000
